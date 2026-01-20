@@ -1,7 +1,18 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, PlayCircle, CheckCircle2, Sparkles } from "lucide-react";
+
+// Mocked user data (normally comes from auth / backend)
+const USER = {
+  user_id: "user_123",
+  age: 28,
+  weight: 78,
+  experience: 0, // 0 beginner, 1 intermediate, 2 advanced
+};
+
+// Mocked DB row (null = calibration phase)
+let predictedActualPlanRow = null;
 
 const EXERCISES = [
   { key: "pushups", label: "Push-ups", type: "reps" },
@@ -15,11 +26,28 @@ export default function Workout() {
   const [started, setStarted] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [sets, setSets] = useState({});
-  const [predicted, setPredicted] = useState({}); // ML predictions
+  const [predicted, setPredicted] = useState({});
+  const [isCalibration, setIsCalibration] = useState(false);
   const [rpe, setRpe] = useState(5);
   const [feeling, setFeeling] = useState(3);
 
   const exercise = EXERCISES[exerciseIndex];
+
+  useEffect(() => {
+    // Check if user exists in predicted_actual_plan
+    if (!predictedActualPlanRow) {
+      setIsCalibration(true);
+      setPredicted({
+        pushups: 0,
+        situps: 0,
+        plank: 0,
+        squats: 0,
+      });
+    } else {
+      setIsCalibration(false);
+      setPredicted(predictedActualPlanRow.predicted);
+    }
+  }, []);
 
   const RPE_LABELS = {
     0: "Rest",
@@ -60,18 +88,55 @@ export default function Workout() {
     }
   };
 
+  const calculateProgressionRate = () => {
+    return USER.experience === 0 ? 0.081 : USER.experience === 1 ? 0.042 : 0.024;
+  };
+
+  const calculateFatigueSensitivity = () => {
+    let value = 1.2;
+
+    if (USER.age >= 31 && USER.age <= 35) value += 0.08;
+    else if (USER.age >= 26) value -= 0.07;
+
+    if (USER.weight < 65) value += 0.03;
+    else if (USER.weight >= 85) value -= 0.19;
+    else if (USER.weight >= 75) value -= 0.08;
+
+    if (USER.experience === 1) value += 0.05;
+    if (USER.experience === 2) value -= 0.05;
+
+    return Number(value.toFixed(2));
+  };
+
   const finishWorkout = () => {
+    const progression_rate = calculateProgressionRate();
+    const fatigue_sensitivity = calculateFatigueSensitivity();
+
     const workoutSummary = {
+      user_id: USER.user_id,
+      calibration: isCalibration,
       exercises: sets,
       predicted,
       rpe,
       rpeLabel: RPE_LABELS[rpe],
       feeling,
       feelingLabel: FEELING_LABELS[feeling],
+      progression_rate,
+      fatigue_sensitivity,
       completedAt: new Date().toISOString(),
     };
 
+    if (isCalibration) {
+      predictedActualPlanRow = {
+        user_id: USER.user_id,
+        progression_rate,
+        fatigue_sensitivity,
+        predicted: sets,
+      };
+    }
+
     console.log("🏋️ Workout Summary", workoutSummary);
+    console.log("📊 Updated predicted_actual_plan row", predictedActualPlanRow);
   };
 
   if (!started) {
@@ -79,20 +144,17 @@ export default function Workout() {
       <div className="min-h-screen bg-neutral-950 text-white p-4 flex flex-col gap-6">
         <h1 className="text-xl font-semibold">Today's Workout</h1>
 
-        <div className="rounded-2xl bg-neutral-900 p-4 shadow">
-          <p className="text-sm text-neutral-400">Last workout</p>
-          <p className="mt-1">Full Body · 4 exercises</p>
-          <p className="text-xs text-neutral-500 mt-2">
-            Push-ups, Sit-ups, Plank, Squats
-          </p>
-        </div>
+        {isCalibration && (
+          <div className="rounded-2xl bg-yellow-900/40 border border-yellow-700 p-4 text-sm text-yellow-300">
+            Calibration workout · Predictions disabled
+          </div>
+        )}
 
         <button
           onClick={() => setStarted(true)}
-          className="mt-auto flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-4 text-lg font-medium shadow-lg active:scale-95"
+          className="mt-auto flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-4 text-lg font-medium shadow-lg"
         >
-          <PlayCircle className="w-6 h-6" />
-          Start Generated Workout
+          <PlayCircle className="w-6 h-6" /> Start Workout
         </button>
       </div>
     );
@@ -113,11 +175,6 @@ export default function Workout() {
 
           {exercise.type !== "feedback" && (
             <>
-              <p className="text-sm text-neutral-400 mb-4">
-                4 sets · 15 sec rest between sets
-              </p>
-
-              {/* ML Prediction */}
               <div className="mb-4 flex items-center justify-between rounded-xl bg-indigo-950/40 border border-indigo-800 px-4 py-3">
                 <div className="flex items-center gap-2 text-indigo-300">
                   <Sparkles className="w-4 h-4" />
@@ -130,21 +187,13 @@ export default function Workout() {
 
               <div className="grid grid-cols-2 gap-4">
                 {[0, 1, 2, 3].map((i) => (
-                  <div
+                  <input
                     key={i}
-                    className="bg-neutral-900 rounded-xl p-4 flex flex-col gap-2"
-                  >
-                    <span className="text-xs text-neutral-400">
-                      Set {i + 1}
-                    </span>
-                    <input
-                      type="number"
-                      placeholder={exercise.type === "seconds" ? "sec" : "reps"}
-                      value={sets?.[exercise.key]?.[i] ?? ""}
-                      onChange={(e) => handleSetChange(i, e.target.value)}
-                      className="bg-neutral-800 rounded-lg p-2 text-center text-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
+                    type="number"
+                    placeholder={`Set ${i + 1}`}
+                    onChange={(e) => handleSetChange(i, e.target.value)}
+                    className="bg-neutral-900 rounded-xl p-4 text-center"
+                  />
                 ))}
               </div>
             </>
@@ -152,54 +201,19 @@ export default function Workout() {
 
           {exercise.type === "feedback" && (
             <div className="flex flex-col gap-6 mt-6">
-              <div className="bg-neutral-900 rounded-2xl p-4">
-                <p className="text-sm text-neutral-400 mb-2">RPE (0–10)</p>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  value={rpe}
-                  onChange={(e) => setRpe(Number(e.target.value))}
-                  className="w-full"
-                />
-                <p className="text-center mt-2 text-lg font-medium">
-                  {RPE_LABELS[rpe]}
-                </p>
-              </div>
-
-              <div className="bg-neutral-900 rounded-2xl p-4">
-                <p className="text-sm text-neutral-400 mb-2">
-                  Workout Quality (0–5)
-                </p>
-                <input
-                  type="range"
-                  min="0"
-                  max="5"
-                  value={feeling}
-                  onChange={(e) => setFeeling(Number(e.target.value))}
-                  className="w-full"
-                />
-                <p className="text-center mt-2 text-lg font-medium">
-                  {FEELING_LABELS[feeling]}
-                </p>
-              </div>
+              <input type="range" min="0" max="10" value={rpe} onChange={(e) => setRpe(+e.target.value)} />
+              <input type="range" min="0" max="5" value={feeling} onChange={(e) => setFeeling(+e.target.value)} />
             </div>
           )}
 
           <div className="mt-auto pt-6">
             {exerciseIndex === EXERCISES.length - 1 ? (
-              <button
-                onClick={finishWorkout}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-green-600 py-4 text-lg font-medium shadow-lg"
-              >
-                <CheckCircle2 className="w-6 h-6" /> Finish Workout
+              <button onClick={finishWorkout} className="w-full bg-green-600 py-4 rounded-2xl">
+                <CheckCircle2 className="inline mr-2" /> Finish Workout
               </button>
             ) : (
-              <button
-                onClick={nextExercise}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-4 text-lg font-medium shadow-lg"
-              >
-                Next Exercise <ChevronRight className="w-6 h-6" />
+              <button onClick={nextExercise} className="w-full bg-indigo-600 py-4 rounded-2xl">
+                Next <ChevronRight className="inline" />
               </button>
             )}
           </div>
