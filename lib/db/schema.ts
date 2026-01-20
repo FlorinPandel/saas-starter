@@ -5,8 +5,10 @@ import {
   text,
   timestamp,
   integer,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { int } from 'drizzle-orm/mysql-core';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -14,12 +16,29 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   role: varchar('role', { length: 20 }).notNull().default('member'),
-  age: integer('age').notNull(),
-  bodyweight: integer('bodyweight').notNull(),
-  experience: integer('experience').notNull(),
+  sex: integer('sex').default(0),
+  age: integer('age').notNull().default(25),
+  bodyweight: integer('bodyweight').notNull().default(65),
+  experience: integer('experience').notNull().default(0),
   progressionRate: integer('progression_rate').default(0),
   fatigueSensitivity: integer('fatigue_sensitivity').default(0),
   fatigue: integer('fatigue').default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+});
+
+export const predictedActualPlan = pgTable('predicted_actual_plan', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id')
+    .notNull()
+    .references(() => users.id),
+  exercise: varchar('exercise', { length: 255 }).notNull(),
+  predicted: jsonb('predicted').notNull(),
+  actual: jsonb('actual').notNull(),
+  week: integer('week').notNull(),
+  rpe: integer('rpe').notNull(),
+  feeling: integer('feeling').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   deletedAt: timestamp('deleted_at'),
