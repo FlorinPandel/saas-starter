@@ -2,16 +2,12 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, PlayCircle, CheckCircle2, Sparkles } from "lucide-react";
+import useSWR from "swr";
+import { User } from "@/lib/db/schema";
 
-// Mocked user data (normally comes from auth / backend)
-const USER = {
-  user_id: "user_123",
-  age: 28,
-  weight: 78,
-  experience: 0, // 0 beginner, 1 intermediate, 2 advanced
-};
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-// Mocked DB row (null = calibration phase)
+// If null → calibration mode
 let predictedActualPlanRow = null;
 
 const EXERCISES = [
@@ -22,7 +18,34 @@ const EXERCISES = [
   { key: "feedback", label: "Workout Feedback", type: "feedback" },
 ];
 
+const RPE_LABELS = {
+  0: "Rest",
+  2: "Very Easy",
+  4: "Easy",
+  6: "Moderate",
+  8: "Hard",
+  10: "Max Effort",
+};
+
+const FEELING_LABELS = {
+  0: "Very Bad",
+  1: "Bad",
+  2: "Okay",
+  3: "Good",
+  4: "Very Good",
+  5: "Excellent",
+};
+
 export default function Workout() {
+  const { data: user } = useSWR<User>("/api/user", fetcher);
+
+  const USER = {
+    user_id: user?.id,
+    age: user?.age || 30,
+    weight: user?.bodyweight || 75,
+    experience: user?.experience ?? 0,
+  };
+
   const [started, setStarted] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [sets, setSets] = useState({});
@@ -34,67 +57,23 @@ export default function Workout() {
   const exercise = EXERCISES[exerciseIndex];
 
   useEffect(() => {
-    // Check if user exists in predicted_actual_plan
     if (!predictedActualPlanRow) {
       setIsCalibration(true);
-      setPredicted({
-        pushups: 0,
-        situps: 0,
-        plank: 0,
-        squats: 0,
-      });
+      setPredicted({ pushups: 0, situps: 0, plank: 0, squats: 0 });
     } else {
-      setIsCalibration(false);
       setPredicted(predictedActualPlanRow.predicted);
     }
   }, []);
 
-  const RPE_LABELS = {
-    0: "Rest",
-    1: "Very Easy",
-    2: "Easy",
-    3: "Light",
-    4: "Moderate",
-    5: "Challenging",
-    6: "Hard",
-    7: "Very Hard",
-    8: "Extremely Hard",
-    9: "Near Max",
-    10: "Max Effort",
-  };
+  /* =====================
+     PROGRESSION & FATIGUE
+     ===================== */
 
-  const FEELING_LABELS = {
-    0: "Very Bad",
-    1: "Bad",
-    2: "Okay",
-    3: "Good",
-    4: "Very Good",
-    5: "Excellent",
-  };
-
-  const handleSetChange = (setIndex, value) => {
-    setSets((prev) => ({
-      ...prev,
-      [exercise.key]: {
-        ...(prev[exercise.key] || {}),
-        [setIndex]: Number(value),
-      },
-    }));
-  };
-
-  const nextExercise = () => {
-    if (exerciseIndex < EXERCISES.length - 1) {
-      setExerciseIndex((i) => i + 1);
-    }
-  };
-
-  const calculateProgressionRate = () => {
-    return USER.experience === 0 ? 0.081 : USER.experience === 1 ? 0.042 : 0.024;
-  };
+  const calculateProgressionRate = () =>
+    USER.experience === 0 ? 0.081 : USER.experience === 1 ? 0.042 : 0.024;
 
   const calculateFatigueSensitivity = () => {
     let value = 1.2;
-
     if (USER.age >= 31 && USER.age <= 35) value += 0.08;
     else if (USER.age >= 26) value -= 0.07;
 
@@ -108,53 +87,132 @@ export default function Workout() {
     return Number(value.toFixed(2));
   };
 
-  const finishWorkout = () => {
-    const progression_rate = calculateProgressionRate();
-    const fatigue_sensitivity = calculateFatigueSensitivity();
+  // STRICT ±1 variation, numeric-safe
+  const generateTwoWeeksOfSessions = (baseSets) => {
+    const sessions = [];
 
-    const workoutSummary = {
-      user_id: USER.user_id,
-      calibration: isCalibration,
-      exercises: sets,
-      predicted,
-      rpe,
-      rpeLabel: RPE_LABELS[rpe],
-      feeling,
-      feelingLabel: FEELING_LABELS[feeling],
-      progression_rate,
-      fatigue_sensitivity,
-      completedAt: new Date().toISOString(),
-    };
+    for (let week = 1; week <= 2; week++) {
+      Object.entries(baseSets).forEach(([exercise, setsObj]) => {
+        const baseReps = [0, 1, 2, 3].map(
+          (i) => Number.parseInt(setsObj[i], 10) || 0
+        );
 
-    if (isCalibration) {
-      predictedActualPlanRow = {
-        user_id: USER.user_id,
-        progression_rate,
-        fatigue_sensitivity,
-        predicted: sets,
-      };
+        const variedReps = baseReps.map((base) => {
+          const delta = Math.random() < 0.5 ? -1 : 1;
+          return Math.max(0, base + delta);
+        });
+
+        const volume = variedReps.reduce((a, b) => a + b, 0);
+
+        sessions.push({
+          user_id: USER.user_id,
+          week: week,
+          exercise,
+          sets: 4,
+          reps_per_set: variedReps,
+          avg_rpe: rpe,
+          volume,
+          weighted_volume: Math.round(
+            volume * calculateProgressionRate() * calculateFatigueSensitivity()
+          ),
+        });
+      });
     }
 
-    console.log("🏋️ Workout Summary", workoutSummary);
-    console.log("📊 Updated predicted_actual_plan row", predictedActualPlanRow);
+    return sessions;
   };
+
+  /* =====================
+     UI HANDLERS
+     ===================== */
+
+  const handleSetChange = (setIndex, value) => {
+    const num = Number(value) || 0;
+    setSets((prev) => ({
+      ...prev,
+      [exercise.key]: {
+        ...(prev[exercise.key] || {}),
+        [setIndex]: num,
+      },
+    }));
+  };
+
+  const nextExercise = () => setExerciseIndex((i) => i + 1);
+
+  const calculateVolume = (reps) => reps.reduce((a, b) => a + b, 0);
+
+  const saveWorkout = async (payload) => {
+    await fetch("/api/saveWorkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  };
+
+  /* =====================
+     FINISH WORKOUT FLOW
+     ===================== */
+
+  const finishWorkout = async () => {
+    // 1️⃣ CALIBRATION → save simulated future weeks FIRST
+    if (isCalibration) {
+      const simulatedSessions = generateTwoWeeksOfSessions(sets);
+
+      for (const session of simulatedSessions) {
+        await saveWorkout(session);
+      }
+    }
+
+    // 2️⃣ SAVE ACTUAL WORKOUT (week 1)
+    for (const ex of EXERCISES) {
+      if (ex.type === "feedback") continue;
+
+      const setsObj = sets[ex.key] || {};
+      const reps = [0, 1, 2, 3].map((i) => Number(setsObj[i] ?? 0));
+      const volume = calculateVolume(reps);
+
+      await saveWorkout({
+        week: 1,
+        exercise: ex.key,
+        sets: 4,
+        reps_per_set: reps,
+        volume,
+        weighted_volume: Math.round(volume * USER.weight),
+        avg_rpe: rpe,
+      });
+    }
+
+    if (isCalibration) {
+      predictedActualPlanRow = { predicted: sets };
+    }
+
+    console.log("🏋️ WORKOUT COMPLETE", {
+      calibration: isCalibration,
+      simulated_weeks: isCalibration ? 2 : 0,
+      actual_sets: sets,
+      rpe,
+      feeling,
+    });
+  };
+
+  /* =====================
+     UI
+     ===================== */
 
   if (!started) {
     return (
       <div className="min-h-screen bg-neutral-950 text-white p-4 flex flex-col gap-6">
         <h1 className="text-xl font-semibold">Today's Workout</h1>
-
         {isCalibration && (
-          <div className="rounded-2xl bg-yellow-900/40 border border-yellow-700 p-4 text-sm text-yellow-300">
-            Calibration workout · Predictions disabled
+          <div className="rounded-xl bg-yellow-900/40 border border-yellow-700 p-3 text-yellow-300 text-sm">
+            Calibration workout · Simulated weeks will be generated
           </div>
         )}
-
         <button
           onClick={() => setStarted(true)}
-          className="mt-auto flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-4 text-lg font-medium shadow-lg"
+          className="mt-auto bg-indigo-600 rounded-2xl py-4 text-lg"
         >
-          <PlayCircle className="w-6 h-6" /> Start Workout
+          <PlayCircle className="inline mr-2" /> Start Workout
         </button>
       </div>
     );
@@ -171,17 +229,16 @@ export default function Workout() {
           transition={{ duration: 0.3 }}
           className="flex-1 flex flex-col"
         >
-          <h2 className="text-2xl font-bold mb-1">{exercise.label}</h2>
+          <h2 className="text-2xl font-bold mb-4">{exercise.label}</h2>
 
           {exercise.type !== "feedback" && (
             <>
-              <div className="mb-4 flex items-center justify-between rounded-xl bg-indigo-950/40 border border-indigo-800 px-4 py-3">
-                <div className="flex items-center gap-2 text-indigo-300">
-                  <Sparkles className="w-4 h-4" />
-                  <span className="text-sm">Predicted</span>
-                </div>
-                <span className="text-lg font-semibold">
-                  {predicted[exercise.key] ?? 0} {exercise.type === "seconds" ? "sec" : "reps"}
+              <div className="mb-4 flex justify-between bg-indigo-950/40 p-3 rounded-xl">
+                <span className="text-indigo-300 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" /> Predicted
+                </span>
+                <span className="font-semibold">
+                  {predicted[exercise.key] ?? 0}
                 </span>
               </div>
 
@@ -190,8 +247,9 @@ export default function Workout() {
                   <input
                     key={i}
                     type="number"
-                    placeholder={`Set ${i + 1}`}
+                    value={sets?.[exercise.key]?.[i] ?? ""}
                     onChange={(e) => handleSetChange(i, e.target.value)}
+                    placeholder={`Set ${i + 1}`}
                     className="bg-neutral-900 rounded-xl p-4 text-center"
                   />
                 ))}
@@ -200,19 +258,52 @@ export default function Workout() {
           )}
 
           {exercise.type === "feedback" && (
-            <div className="flex flex-col gap-6 mt-6">
-              <input type="range" min="0" max="10" value={rpe} onChange={(e) => setRpe(+e.target.value)} />
-              <input type="range" min="0" max="5" value={feeling} onChange={(e) => setFeeling(+e.target.value)} />
+            <div className="flex flex-col gap-6">
+              <div className="bg-neutral-900 rounded-xl p-4">
+                <p className="text-sm text-neutral-400 mb-2">RPE (0–10)</p>
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  value={rpe}
+                  onChange={(e) => setRpe(Number(e.target.value))}
+                  className="w-full"
+                />
+                <p className="text-center mt-2 font-medium">
+                  {RPE_LABELS[rpe] || `RPE ${rpe}`}
+                </p>
+              </div>
+
+              <div className="bg-neutral-900 rounded-xl p-4">
+                <p className="text-sm text-neutral-400 mb-2">Workout Feeling (0–5)</p>
+                <input
+                  type="range"
+                  min="0"
+                  max="5"
+                  value={feeling}
+                  onChange={(e) => setFeeling(Number(e.target.value))}
+                  className="w-full"
+                />
+                <p className="text-center mt-2 font-medium">
+                  {FEELING_LABELS[feeling]}
+                </p>
+              </div>
             </div>
           )}
 
           <div className="mt-auto pt-6">
             {exerciseIndex === EXERCISES.length - 1 ? (
-              <button onClick={finishWorkout} className="w-full bg-green-600 py-4 rounded-2xl">
+              <button
+                onClick={finishWorkout}
+                className="w-full bg-green-600 py-4 rounded-2xl"
+              >
                 <CheckCircle2 className="inline mr-2" /> Finish Workout
               </button>
             ) : (
-              <button onClick={nextExercise} className="w-full bg-indigo-600 py-4 rounded-2xl">
+              <button
+                onClick={nextExercise}
+                className="w-full bg-indigo-600 py-4 rounded-2xl"
+              >
                 Next <ChevronRight className="inline" />
               </button>
             )}

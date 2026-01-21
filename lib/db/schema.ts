@@ -28,6 +28,23 @@ export const users = pgTable('users', {
   deletedAt: timestamp('deleted_at'),
 });
 
+export const workoutSessions = pgTable('workout_sessions', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id')
+    .notNull()
+    .references(() => users.id),
+  week: integer('week').notNull(),
+  exercise: varchar('exercise', { length: 255 }).notNull(),
+  sets: integer('sets').notNull(),
+  reps_per_set: jsonb('reps_per_set').notNull(),
+  volume: integer('volume').notNull(),
+  weighted_volume: integer('weighted_volume').notNull(),
+  avg_rpe: integer('avg_rpe').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+});
+
 export const predictedActualPlan = pgTable('predicted_actual_plan', {
   id: serial('id').primaryKey(),
   user_id: integer('user_id')
