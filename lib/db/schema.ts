@@ -6,6 +6,7 @@ import {
   timestamp,
   integer,
   jsonb,
+  doublePrecision
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { int } from 'drizzle-orm/mysql-core';
@@ -20,8 +21,8 @@ export const users = pgTable('users', {
   age: integer('age').notNull().default(25),
   bodyweight: integer('bodyweight').notNull().default(65),
   experience: integer('experience').notNull().default(0),
-  progressionRate: integer('progression_rate').default(0),
-  fatigueSensitivity: integer('fatigue_sensitivity').default(0),
+  progressionRate: doublePrecision("progression_rate").default(0),
+  fatigueSensitivity: doublePrecision("fatigue_sensitivity").default(0),
   fatigue: integer('fatigue').default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

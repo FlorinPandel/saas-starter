@@ -56,14 +56,52 @@ export default function Workout() {
 
   const exercise = EXERCISES[exerciseIndex];
 
+  const [features1, setFeatures] = useState(null);
+
   useEffect(() => {
-    if (!predictedActualPlanRow) {
-      setIsCalibration(true);
-      setPredicted({ pushups: 0, situps: 0, plank: 0, squats: 0 });
-    } else {
-      setPredicted(predictedActualPlanRow.predicted);
+  const fetchFeatures = async () => {
+    try {
+      const response = await fetch(
+        `/api/getPlanFeatures?user_id=${USER.user_id}`
+      );
+      const data = await response.json();
+
+      setFeatures(data.features);
+
+      // ✅ calibration logic
+      if (data.features?.total_volume === 0) {
+        console.log("Calibration mode activated");
+        setIsCalibration(true);
+      } else {
+        setIsCalibration(false);
+        console.log("Regular workout mode");
+      }
+
+    } catch (error) {
+      console.error("Failed to fetch features:", error);
     }
+  };
+
+  fetchFeatures();
+}, [USER.user_id]);
+
+
+  useEffect(() => {
+    // async function inside useEffect
+    const fetchFeatures = async () => {
+      try {
+        const response = await fetch(`/api/getPlanFeatures?user_id=${USER.user_id}`);
+        const data = await response.json();
+        setFeatures(data.features); // save in state
+        console.log("Features:", data.features);
+      } catch (error) {
+        console.error("Failed to fetch features:", error);
+      }
+    };
+
+    fetchFeatures();
   }, []);
+  console.log("Features state:", features1);
 
   /* =====================
      PROGRESSION & FATIGUE
@@ -86,6 +124,35 @@ export default function Workout() {
 
     return Number(value.toFixed(2));
   };
+  const features = JSON.stringify({
+    total_weighted_load_2w: 1400,
+    avg_rpe_2w: 5,
+    volume_trend: 30,
+    fatigue_index: 0,
+    monotony: 1.2,
+    age: 25,
+    weight: 65,
+    experience: 2,
+    progression_rate: 0.08,
+    fatigue_sensitivity: 0.6,
+    best_session_volume_pushups: 45,
+    total_volume: 900
+  })
+
+  const predictNextWeek = async (features1) => {
+  const res = await fetch("http://localhost:8000/predict/ridge", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: features1,
+  });
+
+  if (!res.ok) {
+    throw new Error("Prediction failed");
+  }
+
+  return res.json();
+};
+console.log(predictNextWeek(JSON.stringify(features1)))
 
   // STRICT ±1 variation, numeric-safe
   const generateTwoWeeksOfSessions = (baseSets) => {
@@ -103,6 +170,15 @@ export default function Workout() {
         });
 
         const volume = variedReps.reduce((a, b) => a + b, 0);
+        // Find the weight for the current exercise, default to 1 if not found
+        const exerciseWeights = [
+          { exercise: "pushups", weight: 1.0 },
+          { exercise: "squats", weight: 0.7 },
+          { exercise: "situps", weight: 1.5 },
+          { exercise: "plank", weight: 0.3 }
+        ];
+        const exerciseWeight =
+          exerciseWeights.find((w) => w.exercise === exercise)?.weight ?? 1;
 
         sessions.push({
           user_id: USER.user_id,
@@ -112,9 +188,7 @@ export default function Workout() {
           reps_per_set: variedReps,
           avg_rpe: rpe,
           volume,
-          weighted_volume: Math.round(
-            volume * calculateProgressionRate() * calculateFatigueSensitivity()
-          ),
+          weighted_volume: volume * exerciseWeight,
         });
       });
     }
@@ -149,6 +223,17 @@ export default function Workout() {
     });
   };
 
+  const updateUserCalibration = async () => {
+    await fetch("/api/updateUser", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        progression_rate: calculateProgressionRate(),
+        fatigue_sensitivity: calculateFatigueSensitivity(),
+      }),
+    });
+  };
+
   /* =====================
      FINISH WORKOUT FLOW
      ===================== */
@@ -161,6 +246,9 @@ export default function Workout() {
       for (const session of simulatedSessions) {
         await saveWorkout(session);
       }
+
+      // 🔁 persist calibration metrics on user
+      await updateUserCalibration();
     }
 
     // 2️⃣ SAVE ACTUAL WORKOUT (week 1)
@@ -171,13 +259,22 @@ export default function Workout() {
       const reps = [0, 1, 2, 3].map((i) => Number(setsObj[i] ?? 0));
       const volume = calculateVolume(reps);
 
+      const exerciseWeights = [
+        { exercise: "pushups", weight: 1.0 },
+        { exercise: "squats", weight: 0.7 },
+        { exercise: "situps", weight: 1.5 },
+        { exercise: "plank", weight: 0.3 }
+      ];
+      const exerciseWeight =
+        exerciseWeights.find((w) => w.exercise === ex.key)?.weight ?? 1;
+
       await saveWorkout({
         week: 1,
         exercise: ex.key,
         sets: 4,
         reps_per_set: reps,
         volume,
-        weighted_volume: Math.round(volume * USER.weight),
+        weighted_volume: Math.round(volume * exerciseWeight),
         avg_rpe: rpe,
       });
     }
@@ -188,6 +285,8 @@ export default function Workout() {
 
     console.log("🏋️ WORKOUT COMPLETE", {
       calibration: isCalibration,
+      progression_rate: calculateProgressionRate(),
+      fatigue_sensitivity: calculateFatigueSensitivity(),
       simulated_weeks: isCalibration ? 2 : 0,
       actual_sets: sets,
       rpe,
