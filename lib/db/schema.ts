@@ -52,8 +52,8 @@ export const predictedActualPlan = pgTable('predicted_actual_plan', {
     .notNull()
     .references(() => users.id),
   exercise: varchar('exercise', { length: 255 }).notNull(),
-  predicted: jsonb('predicted').notNull(),
-  actual: jsonb('actual').notNull(),
+  predicted: integer('predicted').notNull(),
+  actual: integer('actual').notNull(),
   week: integer('week').notNull(),
   rpe: integer('rpe').notNull(),
   feeling: integer('feeling').notNull(),

@@ -53,37 +53,244 @@ export default function Workout() {
   const [isCalibration, setIsCalibration] = useState(false);
   const [rpe, setRpe] = useState(5);
   const [feeling, setFeeling] = useState(3);
+  const [mlPrediction, setMlPrediction] = useState(null);
+  const [recommendation, setRecommendation] = useState(null);
 
   const exercise = EXERCISES[exerciseIndex];
 
   const [features1, setFeatures] = useState(null);
+  const [lastWorkout, setLastWorkout] = useState(null);
 
-  useEffect(() => {
-  const fetchFeatures = async () => {
-    try {
-      const response = await fetch(
-        `/api/getPlanFeatures?user_id=${USER.user_id}`
-      );
-      const data = await response.json();
+  /* =====================
+     ML PREDICTION LOGIC
+     ===================== */
 
-      setFeatures(data.features);
 
-      // ✅ calibration logic
-      if (data.features?.total_volume === 0) {
-        console.log("Calibration mode activated");
-        setIsCalibration(true);
-      } else {
-        setIsCalibration(false);
-        console.log("Regular workout mode");
-      }
-
-    } catch (error) {
-      console.error("Failed to fetch features:", error);
-    }
+  const savePredictedActual = async (payload) => {
+    await fetch("/api/savePredictedPlan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
   };
 
-  fetchFeatures();
-}, [USER.user_id]);
+
+  // Categorize ML prediction into actionable recommendation
+  const categorizePrediction = (predictedChange) => {
+  let category, advice, adjustmentRange;
+
+  if (predictedChange < -150) {
+    category = "FULL_DELOAD";
+    advice = "Severe fatigue detected. Cut volume by 40–60% and prioritize recovery.";
+    adjustmentRange = [-0.6, -0.4];
+
+  } else if (predictedChange < -100) {
+    category = "DELOAD";
+    advice = "Significant fatigue. Reduce volume by 30–50%.";
+    adjustmentRange = [-0.5, -0.3];
+
+  } else if (predictedChange < -40) {
+    category = "REDUCE";
+    advice = "Moderate fatigue. Reduce volume by 15–25%.";
+    adjustmentRange = [-0.25, -0.15];
+
+  } else if (predictedChange < 20) {
+    category = "MAINTAIN";
+    advice = "Maintain current volume. Focus on quality and consistency.";
+    adjustmentRange = [0, 0];
+
+  } else if (predictedChange < 60) {
+    category = "INCREASE_LIGHT";
+    advice = "Mild positive adaptation. Increase volume by 5–10%.";
+    adjustmentRange = [0.05, 0.1];
+
+  } else if (predictedChange < 100) {
+    category = "INCREASE";
+    advice = "Good adaptation. Increase volume by 10–20%.";
+    adjustmentRange = [0.1, 0.2];
+
+  } else if (predictedChange < 160) {
+    category = "PUSH";
+    advice = "Strong adaptation signal. Increase volume by 20–30%.";
+    adjustmentRange = [0.2, 0.3];
+
+  } else if (predictedChange < 220) {
+    category = "PUSH_HARD";
+    advice = "Very strong response. Increase volume by 25–35%, monitor fatigue closely.";
+    adjustmentRange = [0.25, 0.35];
+
+  } else {
+    category = "OVERREACH";
+    advice = "Exceptional capacity detected. Short-term overload (30–40%), plan recovery soon.";
+    adjustmentRange = [0.3, 0.4];
+  }
+
+  return {
+    category,
+    advice,
+    adjustmentRange,
+    predictedChange,
+  };
+};
+
+
+  // Apply ML recommendation to generate predicted sets based on last workout
+  const applyRecommendationToSets = (lastWorkoutData, adjustmentRange) => {
+    const adjustedSets = {};
+    const [minAdj, maxAdj] = adjustmentRange;
+    const avgAdjustment = (minAdj + maxAdj) / 2;
+
+    console.log("🔧 Applying recommendation:", { lastWorkoutData, adjustmentRange, avgAdjustment });
+
+    EXERCISES.forEach((ex) => {
+      console.log("test")
+      if (ex.type === "feedback") return;
+      
+      // Find the exercise data from last workout
+      const lastExerciseData = lastWorkoutData?.find(w => w.exercise === ex.key);
+      
+      let baseReps;
+      if (lastExerciseData && lastExerciseData.reps_per_set) {
+        // Parse if it's a string (PostgreSQL JSON column might return string)
+        const repsData = typeof lastExerciseData.reps_per_set === 'string' 
+          ? JSON.parse(lastExerciseData.reps_per_set)
+          : lastExerciseData.reps_per_set;
+        
+        // Ensure it's an array
+        baseReps = Array.isArray(repsData) ? repsData : [10, 10, 10, 10];
+        
+        console.log(`📊 ${ex.key} - Last workout reps:`, baseReps);
+      } else {
+        // Fallback to defaults if no last workout data
+        baseReps = ex.key === 'pushups' ? [10, 10, 10, 10] :
+                   ex.key === 'situps' ? [15, 15, 15, 15] :
+                   ex.key === 'plank' ? [30, 30, 30, 30] :
+                   [12, 12, 12, 12]; // squats
+        
+        console.log(`⚠️ ${ex.key} - Using default reps:`, baseReps);
+      }
+      
+      // Calculate last workout total volume
+      const lastVolume = baseReps.reduce((a, b) => Number(a) + Number(b), 0);
+      
+      // Apply adjustment to get new total volume
+      const newVolume = Math.round(lastVolume * (1 + avgAdjustment));
+      
+      // Distribute new volume evenly across 4 sets
+      const repsPerSet = Math.round(newVolume / 4);
+      
+      adjustedSets[ex.key] = {
+        0: repsPerSet,
+        1: repsPerSet,
+        2: repsPerSet,
+        3: repsPerSet
+      };
+      
+      console.log(`✅ ${ex.key} - Last volume: ${lastVolume}, New volume: ${newVolume}, Reps per set: ${repsPerSet}`);
+    });
+
+    return adjustedSets;
+  };
+
+  useEffect(() => {
+    const fetchFeatures = async () => {
+      try {
+        const response = await fetch(
+          `/api/getPlanFeatures?user_id=${USER.user_id}`
+        );
+        const data = await response.json();
+        setFeatures(data.features);
+
+        // ✅ calibration logic
+        if (data.features?.total_volume === 0) {
+          console.log("Calibration mode activated");
+          setIsCalibration(true);
+        } else {
+          setIsCalibration(false);
+          console.log("Regular workout mode");
+          
+          // 🔥 Fetch last workout data
+          try {
+            const lastWorkoutResponse = await fetch(`/api/getLastWorkout?user_id=${USER.user_id}`);
+
+            const lastWorkoutResult = await lastWorkoutResponse.json();
+            const lastWorkoutData = lastWorkoutResult.workouts; // Extract the workouts array
+            setLastWorkout(lastWorkoutData);
+            
+            console.log("📊 Last workout data:", lastWorkoutData);
+
+          } catch (lastWorkoutError) {
+            console.error("Failed to fetch last workout:", lastWorkoutError);
+          }
+          
+          // 🔥 Get ML prediction for non-calibration workouts
+          try {
+            console.log("Requesting ML prediction with features:", data.features);
+            const predictionResponse = await fetch("http://localhost:8000/predict/ridge", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(data.features),
+            });
+
+            if (predictionResponse.ok) {
+              const predictionData = await predictionResponse.json();
+              setMlPrediction(predictionData);
+              
+              // Categorize the prediction
+              const rec = categorizePrediction(predictionData.predicted_weighted_volume_change);
+              setRecommendation(rec);
+              console.log("ML Prediction received:", rec);
+              // Generate predicted sets based on last workout + recommendation
+              // Fetch last workout if not already loaded
+              
+              let workoutData = lastWorkout;
+              
+              if (!workoutData) {
+                
+                try {
+                  const lwResponse = await fetch(`/api/getLastWorkout?user_id=${USER.user_id}`);
+                  const lwResult = await lwResponse.json();
+                  workoutData = lwResult.workouts;
+                } catch (e) {
+                  console.error("Failed to fetch workout for prediction:", e);
+                  workoutData = [];
+                }
+              }
+              
+              const adjustedSets = applyRecommendationToSets(workoutData, rec.adjustmentRange);
+              
+              // Set predicted values for display
+              const predictedValues = {};
+              Object.keys(adjustedSets).forEach(key => {
+                const reps = Object.values(adjustedSets[key]);
+                const totalReps = reps.reduce((a, b) => Number(a) + Number(b), 0);
+                predictedValues[key] = totalReps;
+              });
+              
+              console.log("🎯 Setting predicted state:", predictedValues);
+              setPredicted(predictedValues);
+              
+              console.log("🤖 ML Prediction Summary:", {
+                predictedChange: predictionData.predicted_volume_change,
+                category: rec.category,
+                advice: rec.advice,
+                lastWorkoutCount: workoutData?.length || 0,
+                adjustedSets: adjustedSets,
+                predictedTotals: predictedValues
+              });
+            }
+          } catch (predError) {
+            console.error("Failed to get ML prediction:", predError);
+          }
+        }
+
+      } catch (error) {
+        console.error("Failed to fetch features:", error);
+      }
+    };
+
+    fetchFeatures();
+  }, [USER.user_id]);
 
 
   useEffect(() => {
@@ -124,35 +331,6 @@ export default function Workout() {
 
     return Number(value.toFixed(2));
   };
-  const features = JSON.stringify({
-    total_weighted_load_2w: 1400,
-    avg_rpe_2w: 5,
-    volume_trend: 30,
-    fatigue_index: 0,
-    monotony: 1.2,
-    age: 25,
-    weight: 65,
-    experience: 2,
-    progression_rate: 0.08,
-    fatigue_sensitivity: 0.6,
-    best_session_volume_pushups: 45,
-    total_volume: 900
-  })
-
-  const predictNextWeek = async (features1) => {
-  const res = await fetch("http://localhost:8000/predict/ridge", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: features1,
-  });
-
-  if (!res.ok) {
-    throw new Error("Prediction failed");
-  }
-
-  return res.json();
-};
-console.log(predictNextWeek(JSON.stringify(features1)))
 
   // STRICT ±1 variation, numeric-safe
   const generateTwoWeeksOfSessions = (baseSets) => {
@@ -239,60 +417,75 @@ console.log(predictNextWeek(JSON.stringify(features1)))
      ===================== */
 
   const finishWorkout = async () => {
-    // 1️⃣ CALIBRATION → save simulated future weeks FIRST
-    if (isCalibration) {
-      const simulatedSessions = generateTwoWeeksOfSessions(sets);
+  // 1️⃣ CALIBRATION MODE
+  if (isCalibration) {
+    const simulatedSessions = generateTwoWeeksOfSessions(sets);
 
-      for (const session of simulatedSessions) {
-        await saveWorkout(session);
-      }
-
-      // 🔁 persist calibration metrics on user
-      await updateUserCalibration();
+    for (const session of simulatedSessions) {
+      await saveWorkout(session);
     }
 
-    // 2️⃣ SAVE ACTUAL WORKOUT (week 1)
-    for (const ex of EXERCISES) {
-      if (ex.type === "feedback") continue;
+    await updateUserCalibration();
+  }
 
-      const setsObj = sets[ex.key] || {};
-      const reps = [0, 1, 2, 3].map((i) => Number(setsObj[i] ?? 0));
-      const volume = calculateVolume(reps);
+  // 2️⃣ SAVE ACTUAL WORKOUT (always)
+  for (const ex of EXERCISES) {
+    if (ex.type === "feedback") continue;
 
-      const exerciseWeights = [
-        { exercise: "pushups", weight: 1.0 },
-        { exercise: "squats", weight: 0.7 },
-        { exercise: "situps", weight: 1.5 },
-        { exercise: "plank", weight: 0.3 }
-      ];
-      const exerciseWeight =
-        exerciseWeights.find((w) => w.exercise === ex.key)?.weight ?? 1;
+    const setsObj = sets[ex.key] || {};
+    const reps = [0, 1, 2, 3].map((i) => Number(setsObj[i] ?? 0));
+    const actualVolume = calculateVolume(reps);
 
-      await saveWorkout({
+    const exerciseWeights = [
+      { exercise: "pushups", weight: 1.0 },
+      { exercise: "squats", weight: 0.7 },
+      { exercise: "situps", weight: 1.5 },
+      { exercise: "plank", weight: 0.3 },
+    ];
+
+    const exerciseWeight =
+      exerciseWeights.find((w) => w.exercise === ex.key)?.weight ?? 1;
+
+    await saveWorkout({
+      week: 1,
+      exercise: ex.key,
+      sets: 4,
+      reps_per_set: reps,
+      volume: actualVolume,
+      weighted_volume: Math.round(actualVolume * exerciseWeight),
+      avg_rpe: rpe,
+    });
+
+    // 3️⃣ 🔥 SAVE PREDICTED VS ACTUAL (NON-CALIBRATION ONLY)
+    if (!isCalibration) {
+      const predictedVolume = predicted?.[ex.key] ?? 0;
+
+      await savePredictedActual({
         week: 1,
         exercise: ex.key,
-        sets: 4,
-        reps_per_set: reps,
-        volume,
-        weighted_volume: Math.round(volume * exerciseWeight),
-        avg_rpe: rpe,
+        predicted: predictedVolume,
+        actual: actualVolume,
+        rpe,
+        feeling,
+      });
+
+      console.log("📈 Saved predicted vs actual", {
+        exercise: ex.key,
+        predicted: predictedVolume,
+        actual: actualVolume,
       });
     }
+  }
 
-    if (isCalibration) {
-      predictedActualPlanRow = { predicted: sets };
-    }
+  console.log("🏋️ WORKOUT COMPLETE", {
+    calibration: isCalibration,
+    actual_sets: sets,
+    predicted,
+    rpe,
+    feeling,
+  });
+};
 
-    console.log("🏋️ WORKOUT COMPLETE", {
-      calibration: isCalibration,
-      progression_rate: calculateProgressionRate(),
-      fatigue_sensitivity: calculateFatigueSensitivity(),
-      simulated_weeks: isCalibration ? 2 : 0,
-      actual_sets: sets,
-      rpe,
-      feeling,
-    });
-  };
 
   /* =====================
      UI
@@ -300,13 +493,34 @@ console.log(predictNextWeek(JSON.stringify(features1)))
 
   if (!started) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-white p-4 flex flex-col gap-6">
+      <div className=" bg-neutral-950 text-white p-4 flex flex-col gap-6">
         <h1 className="text-xl font-semibold">Today's Workout</h1>
+        
         {isCalibration && (
           <div className="rounded-xl bg-yellow-900/40 border border-yellow-700 p-3 text-yellow-300 text-sm">
             Calibration workout · Simulated weeks will be generated
           </div>
         )}
+        
+        {!isCalibration && recommendation && (
+          <div className={`rounded-xl border p-4 ${
+            recommendation.category === 'DELOAD' ? 'bg-red-900/40 border-red-700' :
+            recommendation.category === 'REDUCE' ? 'bg-orange-900/40 border-orange-700' :
+            recommendation.category === 'MAINTAIN' ? 'bg-blue-900/40 border-blue-700' :
+            recommendation.category === 'INCREASE' ? 'bg-green-900/40 border-green-700' :
+            'bg-purple-900/40 border-purple-700'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-5 h-5" />
+              <span className="font-semibold">{recommendation.category}</span>
+            </div>
+            <p className="text-sm opacity-90">{recommendation.advice}</p>
+            <p className="text-xs opacity-70 mt-2">
+              Predicted change: {recommendation.predictedChange > 0 ? '+' : ''}{recommendation.predictedChange}
+            </p>
+          </div>
+        )}
+        
         <button
           onClick={() => setStarted(true)}
           className="mt-auto bg-indigo-600 rounded-2xl py-4 text-lg"
@@ -337,8 +551,13 @@ console.log(predictNextWeek(JSON.stringify(features1)))
                   <Sparkles className="w-4 h-4" /> Predicted
                 </span>
                 <span className="font-semibold">
-                  {predicted[exercise.key] ?? 0}
+                  {predicted[exercise.key] ?? 0} {exercise.type === "seconds" ? "sec" : "reps"}
                 </span>
+              </div>
+              
+              {/* Debug info - remove this later */}
+              <div className="mb-2 text-xs text-neutral-500">
+                Debug: predicted state = {JSON.stringify(predicted)}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

@@ -1,45 +1,83 @@
-// app/api/getPlanFeatures/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import pkg from "pg";
+
 const { Pool } = pkg;
-
-const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL, // your DB URL
-});
-
-function slope(arr) {
-  if (arr.length < 2) return 0;
-  const x = arr.map((_, i) => i);
-  const y = arr;
-  const n = x.length;
-  const xMean = x.reduce((a, b) => a + b, 0) / n;
-  const yMean = y.reduce((a, b) => a + b, 0) / n;
-  const numerator = x.map((xi, i) => (xi - xMean) * (y[i] - yMean)).reduce((a, b) => a + b, 0);
-  const denominator = x.map((xi) => (xi - xMean) ** 2).reduce((a, b) => a + b, 0);
-  return denominator === 0 ? 0 : numerator / denominator;
-}
 
 export const runtime = "nodejs";
 
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+});
+
+/* ======================
+   UTIL: slope (trend)
+   ====================== */
+function slope(values) {
+  if (values.length < 2) return 0;
+
+  const n = values.length;
+  const x = values.map((_, i) => i);
+  const y = values;
+
+  const xMean = x.reduce((a, b) => a + b, 0) / n;
+  const yMean = y.reduce((a, b) => a + b, 0) / n;
+
+  const num = x.reduce(
+    (sum, xi, i) => sum + (xi - xMean) * (y[i] - yMean),
+    0
+  );
+
+  const den = x.reduce((sum, xi) => sum + (xi - xMean) ** 2, 0);
+
+  return den === 0 ? 0 : num / den;
+}
+
+/* ======================
+   API
+   ====================== */
 export async function GET(req) {
   const user_id = Number(req.nextUrl.searchParams.get("user_id"));
-  if (!user_id) return NextResponse.json({ error: "Missing user_id" }, { status: 400 });
+  if (!user_id) {
+    return NextResponse.json({ error: "Missing user_id" }, { status: 400 });
+  }
 
   try {
-    // 1️⃣ Get user
-    const userRes = await pool.query("SELECT * FROM users WHERE id = $1 LIMIT 1", [user_id]);
-    const user = userRes.rows[0];
-    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-
-    // 2️⃣ Get sessions
-    const sessionsRes = await pool.query(
-      "SELECT * FROM workout_sessions WHERE user_id = $1 ORDER BY week",
+    /* ----------------------
+       1️⃣ Fetch user
+       ---------------------- */
+    const userRes = await pool.query(
+      `SELECT id, age, bodyweight, experience, progression_rate, fatigue_sensitivity
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
       [user_id]
     );
-    const sessions = sessionsRes.rows;
 
-    if (!sessions.length) {
-      // Return defaults if no sessions
+    const user = userRes.rows[0];
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    /* ----------------------
+       2️⃣ Fetch LAST 8 sessions
+       ---------------------- */
+    const sessionsRes = await pool.query(
+      `
+      SELECT exercise, volume, weighted_volume, avg_rpe
+      FROM workout_sessions
+      WHERE user_id = $1
+      ORDER BY id DESC
+      LIMIT 8
+      `,
+      [user_id]
+    );
+
+    const sessions = sessionsRes.rows.reverse(); // chronological order
+
+    /* ----------------------
+       3️⃣ Defaults (no data)
+       ---------------------- */
+    if (sessions.length === 0) {
       return NextResponse.json({
         features: {
           total_weighted_load_2w: 0,
@@ -58,44 +96,65 @@ export async function GET(req) {
       });
     }
 
-    // 3️⃣ Aggregate weekly stats
-    const weeklyMap = {};
-    sessions.forEach((s) => {
-      if (!weeklyMap[s.week]) weeklyMap[s.week] = { total_weighted_load: 0, total_volume: 0, avg_rpe_arr: [], best_session_volume_pushups: 0 };
-      weeklyMap[s.week].total_weighted_load += s.weighted_volume;
-      weeklyMap[s.week].total_volume += s.volume;
-      weeklyMap[s.week].avg_rpe_arr.push(s.avg_rpe);
-      if (s.exercise === "pushups" && s.volume > weeklyMap[s.week].best_session_volume_pushups) {
-        weeklyMap[s.week].best_session_volume_pushups = s.volume;
-      }
-    });
+    /* ----------------------
+       4️⃣ Aggregations
+       ---------------------- */
+    const total_weighted_load_2w = sessions.reduce(
+      (sum, s) => sum + Number(s.weighted_volume),
+      0
+    );
 
-    const weeks = Object.keys(weeklyMap).map(Number).sort((a, b) => a - b);
-    const weeklyStats = weeks.map((w) => {
-      const data = weeklyMap[w];
-      const avg_rpe = data.avg_rpe_arr.length
-        ? data.avg_rpe_arr.reduce((a, b) => a + b, 0) / data.avg_rpe_arr.length
-        : 0;
-      return {
-        week: w,
-        total_weighted_load: data.total_weighted_load,
-        total_volume: data.total_volume,
-        avg_rpe,
-        best_session_volume_pushups: data.best_session_volume_pushups,
-      };
-    });
+    const total_volume = sessions.reduce(
+      (sum, s) => sum + Number(s.volume),
+      0
+    );
 
-    const lastWeek = weeklyStats[weeklyStats.length - 1];
-    const total_weighted_load_2w = weeklyStats.slice(-2).reduce((a, w) => a + w.total_weighted_load, 0);
-    const avg_rpe_2w = weeklyStats.slice(-2).reduce((a, w) => a + w.avg_rpe, 0) / Math.min(2, weeklyStats.length);
-    const volume_trend = slope(weeklyStats.slice(-3).map((w) => w.total_weighted_load));
+    const avg_rpe_2w =
+      sessions.reduce((sum, s) => sum + Number(s.avg_rpe), 0) /
+      sessions.length;
 
-    const avgVol = weeklyStats.slice(-3).map((w) => w.total_weighted_load);
-    const meanVol = avgVol.reduce((a, b) => a + b, 0) / avgVol.length;
-    const stdVol = Math.sqrt(avgVol.map((v) => (v - meanVol) ** 2).reduce((a, b) => a + b, 0) / avgVol.length) || 1;
-    const monotony = meanVol / stdVol;
-    const fatigue_index = lastWeek.total_weighted_load * lastWeek.avg_rpe;
+    const weightedSeries = sessions.map((s) =>
+      Number(s.weighted_volume)
+    );
 
+    const volume_trend = slope(weightedSeries);
+
+    /* ----------------------
+       5️⃣ Monotony
+       ---------------------- */
+    const mean =
+      weightedSeries.reduce((a, b) => a + b, 0) / weightedSeries.length;
+
+    const std =
+      Math.sqrt(
+        weightedSeries
+          .map((v) => (v - mean) ** 2)
+          .reduce((a, b) => a + b, 0) / weightedSeries.length
+      ) || 1;
+
+    const monotony = mean / std;
+
+    /* ----------------------
+       6️⃣ Fatigue (last session)
+       ---------------------- */
+    const lastSession = sessions[sessions.length - 1];
+    const fatigue_index =
+      Number(lastSession.weighted_volume) *
+      Number(lastSession.avg_rpe);
+
+    /* ----------------------
+       7️⃣ Best pushups session
+       ---------------------- */
+    const best_session_volume_pushups = Math.max(
+      ...sessions
+        .filter((s) => s.exercise === "pushups")
+        .map((s) => Number(s.volume)),
+      0
+    );
+
+    /* ----------------------
+       8️⃣ Response
+       ---------------------- */
     return NextResponse.json({
       features: {
         total_weighted_load_2w,
@@ -103,8 +162,8 @@ export async function GET(req) {
         volume_trend,
         fatigue_index,
         monotony,
-        best_session_volume_pushups: lastWeek.best_session_volume_pushups,
-        total_volume: lastWeek.total_volume,
+        best_session_volume_pushups,
+        total_volume,
         age: user.age,
         weight: user.bodyweight,
         experience: user.experience,
@@ -113,7 +172,10 @@ export async function GET(req) {
       },
     });
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Server error", details: (err).message }, { status: 500 });
+    console.error("getPlanFeatures error:", err);
+    return NextResponse.json(
+      { error: "Server error", details: err.message },
+      { status: 500 }
+    );
   }
 }
