@@ -21,6 +21,7 @@ export const users = pgTable('users', {
   age: integer('age').notNull().default(25),
   bodyweight: integer('bodyweight').notNull().default(65),
   experience: integer('experience').notNull().default(0),
+  trueStrength: integer('true_strength').notNull().default(15),
   progressionRate: doublePrecision("progression_rate").default(0),
   fatigueSensitivity: doublePrecision("fatigue_sensitivity").default(0),
   fatigue: integer('fatigue').default(0),
@@ -46,6 +47,21 @@ export const workoutSessions = pgTable('workout_sessions', {
   deletedAt: timestamp('deleted_at'),
 });
 
+export const maxPerformanceByWeek = pgTable('max_performance_by_week', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id')
+    .notNull()
+    .references(() => users.id),
+  week: integer('week').notNull(),
+  plank_seconds: integer('plank_seconds').notNull(),
+  push_ups: integer('push_ups').notNull(),
+  squats: integer('squats').notNull(),
+  situps: integer('situps').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+});
+
 export const predictedActualPlan = pgTable('predicted_actual_plan', {
   id: serial('id').primaryKey(),
   user_id: integer('user_id')
@@ -57,6 +73,19 @@ export const predictedActualPlan = pgTable('predicted_actual_plan', {
   week: integer('week').notNull(),
   rpe: integer('rpe').notNull(),
   feeling: integer('feeling').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+});
+
+export const predictedActualMax = pgTable('predicted_actual_max', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id')
+    .notNull()
+    .references(() => users.id),
+  exercise: varchar('exercise', { length: 255 }).notNull(),
+  predicted: integer('predicted').notNull(),
+  actual: integer('actual').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   deletedAt: timestamp('deleted_at'),

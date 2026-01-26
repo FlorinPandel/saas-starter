@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "true_strength" integer DEFAULT 15 NOT NULL;
