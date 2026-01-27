@@ -63,7 +63,7 @@ export default function Workout() {
      ===================== */
 
   const savePredictedActual = async (payload) => {
-    await fetch("/api/savePredictedActualMax", {
+    await fetch("/api/savePredictedMax", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -363,9 +363,20 @@ export default function Workout() {
       console.log("🏋️ CALIBRATION COMPLETE - Saved 2 weeks of simulated data");
     } else {
       // 2️⃣ REGULAR WORKOUT - Save actual performance
+
+       let nextWeek = 1;
+      try {
+        const weekResponse = await fetch(`/api/getLastWeek?user_id=${USER.user_id}`);
+        if (weekResponse.ok) {
+          const weekData = await weekResponse.json();
+          nextWeek = weekData.week + 1 || 1;
+        }
+      } catch (err) {
+        console.error("Failed to get next week, defaulting to 1:", err);
+      }
       const workoutData = {
         user_id: USER.user_id,
-        week: 1,
+        week: nextWeek,
         push_ups: Number(maxReps.push_ups) || 0,
         situps: Number(maxReps.situps) || 0,
         plank_seconds: Number(maxReps.plank_seconds) || 0,
@@ -464,7 +475,7 @@ export default function Workout() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white p-4 flex flex-col">
+    <div className="bg-neutral-950 text-white p-4 flex flex-col">
       <AnimatePresence mode="wait">
         <motion.div
           key={exercise.key}

@@ -16,7 +16,7 @@ export default function DashboardLayout({
 
   const navItems = [
     { href: '/dashboard', icon: Users, label: 'Dashboard' },
-    { href: '/dashboard/workouts', icon: Clock, label: 'Workouts' },
+    { href: '/dashboard/workouts', icon: Activity, label: 'Workouts' },
     { href: '/dashboard/performance', icon: Clock, label: 'Performance' },
     { href: '/dashboard/general', icon: Settings, label: 'General' },
     { href: '/dashboard/activity', icon: Activity, label: 'Activity' },
@@ -28,7 +28,7 @@ export default function DashboardLayout({
       {/* Mobile header */}
       <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4">
         <div className="flex items-center">
-          <span className="font-medium">Settings</span>
+
         </div>
         <Button
           className="-mr-3"

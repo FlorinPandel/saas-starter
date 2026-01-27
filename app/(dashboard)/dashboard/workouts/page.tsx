@@ -532,7 +532,7 @@ export default function Workout() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white p-4 flex flex-col">
+    <div className="bg-neutral-950 text-white p-4 flex flex-col">
       <AnimatePresence mode="wait">
         <motion.div
           key={exercise.key}
