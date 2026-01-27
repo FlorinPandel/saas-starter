@@ -53,7 +53,7 @@ export async function POST(request) {
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
       RETURNING *;
     `;
 

@@ -80,17 +80,23 @@ function UserMenu() {
 
 function Header() {
   return (
-    <header className="border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-        <Link href="/" className="flex items-center">
-            <img
+    <header className="sticky top-0 backdrop-blur border-b border-neutral-800 bg-black">
+      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-3 group">
+          <img
             src="/assets/Sport_Logo.png"
             alt="Sport Logo"
-            className="h-12 w-auto mr-2"
-            />
+            className="h-10 w-auto transition-transform group-hover:scale-105"
+          />
+          <span className="hidden sm:block text-sm font-semibold tracking-wide text-white">
+            Sport<span className="text-emerald-400">ML</span>
+          </span>
         </Link>
-        <div className="flex items-center space-x-4">
-          <Suspense fallback={<div className="h-9" />}>
+
+        {/* Right side */}
+        <div className="flex items-center gap-4">
+          <Suspense fallback={<div className="h-9 w-9 rounded-full bg-neutral-800" />}>
             <UserMenu />
           </Suspense>
         </div>

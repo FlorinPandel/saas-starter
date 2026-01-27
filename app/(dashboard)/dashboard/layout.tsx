@@ -26,7 +26,7 @@ export default function DashboardLayout({
   return (
     <div className="flex flex-col min-h-[calc(100dvh-68px)] max-w-7xl mx-auto w-full">
       {/* Mobile header */}
-      <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4">
+      <div className="lg:hidden flex items-center justify-between border-b border-gray-200 p-4 bg-gray-950">
         <div className="flex items-center">
 
         </div>
@@ -35,7 +35,7 @@ export default function DashboardLayout({
           variant="ghost"
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
         >
-          <Menu className="h-6 w-6" />
+          <Menu className="h-6 w-6 text-white" />
           <span className="sr-only">Toggle sidebar</span>
         </Button>
       </div>

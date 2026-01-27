@@ -463,8 +463,8 @@ export default function Workout() {
       await savePredictedActual({
         week: 1,
         exercise: ex.key,
-        predicted: predictedVolume,
-        actual: actualVolume,
+        predicted: Math.round(predictedVolume),
+        actual: Math.round(actualVolume),
         rpe,
         feeling,
       });
