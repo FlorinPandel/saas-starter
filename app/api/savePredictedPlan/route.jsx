@@ -61,8 +61,8 @@ export async function POST(request) {
       user_id,
       week,
       exercise,
-      JSON.stringify(predicted),
-      JSON.stringify(actual),
+      predicted,
+      actual,
       rpe,
       feeling,
     ];

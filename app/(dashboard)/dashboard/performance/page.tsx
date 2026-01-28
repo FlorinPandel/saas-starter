@@ -15,7 +15,7 @@ const EXERCISES = [
   { key: "feedback", label: "Workout Feedback", type: "feedback" },
 ];
 
-const RPE_LABELS: Record<number, string> = {
+const RPE_LABELS = {
   0: "Rest",
   2: "Very Easy",
   4: "Easy",
@@ -24,7 +24,7 @@ const RPE_LABELS: Record<number, string> = {
   10: "Max Effort",
 };
 
-const FEELING_LABELS: Record<number, string> = {
+const FEELING_LABELS = {
   0: "Very Bad",
   1: "Bad",
   2: "Okay",
@@ -45,20 +45,13 @@ export default function Workout() {
 
   const [started, setStarted] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
-  type MaxReps = {
-    push_ups?: number;
-    situps?: number;
-    plank_seconds?: number;
-    squats?: number;
-    [key: string]: number | undefined;
-  };
-  const [maxReps, setMaxReps] = useState<MaxReps>({});
-  const [predicted, setPredicted] = useState<{ [key: string]: number }>({});
+  const [maxReps, setMaxReps] = useState<Record<string, number>>({});
+  const [predicted, setPredicted] = useState<Record<string, number>>({});
   const [isCalibration, setIsCalibration] = useState(false);
   const [rpe, setRpe] = useState(5);
   const [feeling, setFeeling] = useState(3);
-  const [mlPredictions, setMlPredictions] = useState<{ [key: string]: any }>({});
-  const [recommendations, setRecommendations] = useState<{ [key: string]: any }>({});
+  const [mlPredictions, setMlPredictions] = useState({});
+  const [recommendations, setRecommendations] = useState({});
 
   const exercise = EXERCISES[exerciseIndex];
 
@@ -78,7 +71,7 @@ export default function Workout() {
   };
 
   // Categorize ML prediction into actionable recommendation
-  const categorizePrediction = (predictedChange: any) => {
+  const categorizePrediction = (predictedChange:any) => {
     console.log("Categorizing prediction:", predictedChange);
     let category, advice, adjustmentRange;
 
@@ -129,7 +122,7 @@ export default function Workout() {
   };
 
   // Apply ML recommendation to generate predicted max reps
-  const applyRecommendationToMax = (lastMax: any, adjustmentRange: any) => {
+  const applyRecommendationToMax = (lastMax:any, adjustmentRange:any) => {
     const [minAdj, maxAdj] = adjustmentRange;
     const avgAdjustment = (minAdj + maxAdj) / 2;
     
@@ -184,9 +177,9 @@ export default function Workout() {
             console.log("📊 Last workout data:", lastWorkoutData);
 
             // 🔥 Get ML predictions for each exercise
-            const predictions: { [key: string]: any } = {};
-            const recs: { [key: string]: any } = {};
-            const predictedValues: { [key: string]: any } = {};
+            const predictions: Record<string, any> = {};
+            const recs: Record<string, any> = {};
+            const predictedValues: Record<string, any> = {};
 
             for (const ex of EXERCISES) {
               if (ex.type === "feedback") continue;
@@ -194,7 +187,7 @@ export default function Workout() {
               try {
                 console.log(`Requesting ML prediction for ${ex.key}`);
                 const predictionResponse = await fetch(
-                  `https://fastapi-ch53.onrender.com/predict/${ex.apiEndpoint}`,
+                  `http://localhost:8000/predict/${ex.apiEndpoint}`,
                   {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -233,7 +226,7 @@ export default function Workout() {
                   lastMax = lastWorkoutData?.[ex.key] || 0;
                   }
                   const predictedMax = applyRecommendationToMax(
-                    lastMax,
+                    lastMax[ex.key],
                     rec.adjustmentRange
                   );
                   predictedValues[ex.key] = predictedMax;
@@ -292,7 +285,7 @@ export default function Workout() {
   };
 
   // Generate simulated 2 weeks of max performance data
-   const generateWeeksOfMaxData = (baseMaxReps:any) => {
+   const generateWeeksOfMaxData = (baseMaxReps: any) => {
     const weeks = [];
     const numWeeks = Math.floor(Math.random() * 2) + 4; // Random 4 or 5 weeks
     
@@ -323,7 +316,7 @@ export default function Workout() {
      UI HANDLERS
      ===================== */
 
-  const handleMaxChange = (value:any) => {
+  const handleMaxChange = (value: any) => {
     const num = Number(value) || 0;
     setMaxReps((prev) => ({
       ...prev,
@@ -333,7 +326,7 @@ export default function Workout() {
 
   const nextExercise = () => setExerciseIndex((i) => i + 1);
 
-  const saveMaxWorkout = async (payload:any) => {
+  const saveMaxWorkout = async (payload: any) => {
     await fetch("/api/saveMaxWorkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -535,7 +528,7 @@ export default function Workout() {
                   className="w-full"
                 />
                 <p className="text-center mt-2 font-medium">
-                  {RPE_LABELS[rpe] || `RPE ${rpe}`}
+                  {RPE_LABELS[rpe as keyof typeof RPE_LABELS] || `RPE ${rpe}`}
                 </p>
               </div>
 
@@ -550,7 +543,7 @@ export default function Workout() {
                   className="w-full"
                 />
                 <p className="text-center mt-2 font-medium">
-                  {FEELING_LABELS[feeling]}
+                  {FEELING_LABELS[feeling as keyof typeof FEELING_LABELS]}
                 </p>
               </div>
             </div>
