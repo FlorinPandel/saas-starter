@@ -215,7 +215,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     const priceId = formData.get('priceId') as string;
   }
 
-  redirect('/dashboard');
+  redirect('/personal');
 });
 
 export async function signOut() {

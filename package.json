@@ -44,5 +44,7 @@
   },
   "devDependencies": {
     "@types/pg": "^8.16.0"
-  }
+  },
+  "packageManager": "pnpm@9.0.0"
+
 }
