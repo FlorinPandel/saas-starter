@@ -50,8 +50,8 @@ export default function Workout() {
   const [isCalibration, setIsCalibration] = useState(false);
   const [rpe, setRpe] = useState(5);
   const [feeling, setFeeling] = useState(3);
-  const [mlPredictions, setMlPredictions] = useState({});
-  const [recommendations, setRecommendations] = useState({});
+  const [mlPredictions, setMlPredictions] = useState<Record<string, any>>({});
+  const [recommendations, setRecommendations] = useState<Record<string, any>>({});
 
   const exercise = EXERCISES[exerciseIndex];
 
@@ -225,8 +225,13 @@ export default function Workout() {
                   } catch (err) {
                   lastMax = lastWorkoutData?.[ex.key] || 0;
                   }
+                  console.log(`🤖 ${ex.key} last max value:`, lastMax);
+                  const lastMaxValue =
+                  typeof lastMax === "object" && lastMax !== null
+                    ? lastMax[ex.key] ?? 0
+                    : lastMax ?? 0;
                   const predictedMax = applyRecommendationToMax(
-                    lastMax[ex.key],
+                    lastMaxValue,
                     rec.adjustmentRange
                   );
                   predictedValues[ex.key] = predictedMax;
