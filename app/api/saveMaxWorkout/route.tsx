@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const {
       week,
       plank_seconds,
-      push_ups,
+      pushups,
       situps,
       squats,
     } = body;
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     if (
       typeof week !== "number" ||
       typeof plank_seconds !== "number" ||
-      typeof push_ups !== "number" ||
+      typeof pushups !== "number" ||
       typeof situps !== "number" ||
       typeof squats !== "number"
     ) {
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
         user_id,
         week,
         plank_seconds,
-        push_ups,
+        pushups,
         situps,
         squats,
         created_at,
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       ON CONFLICT (user_id, week)
       DO UPDATE SET
         plank_seconds = EXCLUDED.plank_seconds,
-        push_ups = EXCLUDED.push_ups,
+        pushups = EXCLUDED.pushups,
         situps = EXCLUDED.situps,
         squats = EXCLUDED.squats,
         updated_at = NOW()
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
       user_id,
       week,
       plank_seconds,
-      push_ups,
+      pushups,
       situps,
       squats,
     ];

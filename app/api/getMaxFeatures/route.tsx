@@ -6,12 +6,12 @@ const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
 });
 
-const exercises = ["plank_seconds", "situps", "push_ups", "squats"];
+const exercises = ["plank_seconds", "situps", "pushups", "squats"];
 const lags = [1, 2, 3];
 const EXERCISE_MAP = {
   plank_seconds: "plank_seconds",
   situps: "situps",
-  push_ups: "pushups",
+  pushups: "pushups",
   squats: "squats",
 } as const;
 
@@ -39,7 +39,7 @@ export async function GET() {
 
     // 2️⃣ Performance history
     const perfRes = await pool.query(
-      `SELECT week, plank_seconds, situps, push_ups, squats
+      `SELECT week, plank_seconds, situps, pushups, squats
        FROM max_performance_by_week
        WHERE user_id = $1
        ORDER BY week ASC`,
@@ -53,15 +53,15 @@ export async function GET() {
 
     const latestWeek = performances[performances.length - 1].week;
 
-    // 3️⃣ Build ONE flat feature object
+    //  Build ONE flat feature object
     const features: Record<string, number | null> = {};
 
-    // 🔹 User features
+    //  User features
     Object.entries(user).forEach(([key, value]) => {
       features[key] = Number(value);
     });
 
-    // 🔹 Exercise-based features
+    //  Exercise-based features
     Object.entries(EXERCISE_MAP).forEach(([dbName, mlName]) => {
   // Lag features
   lags.forEach((lag) => {

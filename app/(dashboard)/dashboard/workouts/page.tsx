@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, PlayCircle, CheckCircle2, Sparkles } from "lucide-react";
 import useSWR from "swr";
 import { User } from "@/lib/db/schema";
+import { useRouter } from "next/navigation";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -38,7 +39,7 @@ const FEELING_LABELS = {
 
 export default function Workout() {
   const { data: user } = useSWR<User>("/api/user", fetcher);
-
+  const router = useRouter();
   const USER = {
     user_id: user?.id,
     age: user?.age || 30,
@@ -146,10 +147,7 @@ export default function Workout() {
     const [minAdj, maxAdj] = adjustmentRange;
     const avgAdjustment = (minAdj + maxAdj) / 2;
 
-    console.log("🔧 Applying recommendation:", { lastWorkoutData, adjustmentRange, avgAdjustment });
-
     EXERCISES.forEach((ex) => {
-      console.log("test")
       if (ex.type === "feedback") return;
       
       // Find the exercise data from last workout
@@ -165,7 +163,6 @@ export default function Workout() {
         // Ensure it's an array
         baseReps = Array.isArray(repsData) ? repsData : [10, 10, 10, 10];
         
-        console.log(`📊 ${ex.key} - Last workout reps:`, baseReps);
       } else {
         // Fallback to defaults if no last workout data
         baseReps = ex.key === 'pushups' ? [10, 10, 10, 10] :
@@ -173,7 +170,6 @@ export default function Workout() {
                    ex.key === 'plank' ? [30, 30, 30, 30] :
                    [12, 12, 12, 12]; // squats
         
-        console.log(`⚠️ ${ex.key} - Using default reps:`, baseReps);
       }
       
       // Calculate last workout total volume
@@ -192,7 +188,6 @@ export default function Workout() {
         3: repsPerSet
       };
       
-      console.log(`✅ ${ex.key} - Last volume: ${lastVolume}, New volume: ${newVolume}, Reps per set: ${repsPerSet}`);
     });
 
     return adjustedSets;
@@ -222,8 +217,6 @@ export default function Workout() {
             const lastWorkoutResult = await lastWorkoutResponse.json();
             const lastWorkoutData = lastWorkoutResult.workouts; // Extract the workouts array
             setLastWorkout(lastWorkoutData);
-            
-            console.log("📊 Last workout data:", lastWorkoutData);
 
           } catch (lastWorkoutError) {
             console.error("Failed to fetch last workout:", lastWorkoutError);
@@ -231,7 +224,6 @@ export default function Workout() {
           
           // 🔥 Get ML prediction for non-calibration workouts
           try {
-            console.log("Requesting ML prediction with features:", data.features);
             const predictionResponse = await fetch("https://fastapi-ch53.onrender.com/predict/ridge", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -241,11 +233,12 @@ export default function Workout() {
             if (predictionResponse.ok) {
               const predictionData = await predictionResponse.json();
               setMlPrediction(predictionData);
+              console.log("🤖 ML prediction data:", predictionData);
+
               
               // Categorize the prediction
               const rec = categorizePrediction(predictionData.predicted_weighted_volume_change);
               setRecommendation(rec);
-              console.log("ML Prediction received:", rec);
               // Generate predicted sets based on last workout + recommendation
               // Fetch last workout if not already loaded
               
@@ -273,17 +266,8 @@ export default function Workout() {
                 predictedValues[key] = totalReps;
               });
               
-              console.log("🎯 Setting predicted state:", predictedValues);
               setPredicted(predictedValues);
               
-              console.log("🤖 ML Prediction Summary:", {
-                predictedChange: predictionData.predicted_volume_change,
-                category: rec.category,
-                advice: rec.advice,
-                lastWorkoutCount: Array.isArray(workoutData) ? workoutData.length : 0,
-                adjustedSets: adjustedSets,
-                predictedTotals: predictedValues
-              });
             }
           } catch (predError) {
             console.error("Failed to get ML prediction:", predError);
@@ -314,7 +298,6 @@ export default function Workout() {
 
     fetchFeatures();
   }, []);
-  console.log("Features state:", features1);
 
   /* =====================
      PROGRESSION & FATIGUE
@@ -490,6 +473,8 @@ export default function Workout() {
     rpe,
     feeling,
   });
+  router.push("/dashboard");
+  router.refresh();
 };
 
 

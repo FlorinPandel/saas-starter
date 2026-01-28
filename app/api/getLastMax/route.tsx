@@ -10,7 +10,7 @@ const pool = new Pool({
 const EXERCISE_MAP = {
   plank_seconds: "plank_seconds",
   situps: "situps",
-  push_ups: "pushups",
+  pushups: "pushups",
   squats: "squats",
 } as const;
 
@@ -26,7 +26,7 @@ export async function GET() {
     // 🔹 Get latest week row
     const res = await pool.query(
       `
-      SELECT week, plank_seconds, situps, push_ups, squats
+      SELECT week, plank_seconds, situps, pushups, squats
       FROM max_performance_by_week
       WHERE user_id = $1
       ORDER BY week DESC

@@ -4,11 +4,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, PlayCircle, CheckCircle2, Sparkles } from "lucide-react";
 import useSWR from "swr";
 import { User } from "@/lib/db/schema";
+import { useRouter } from "next/navigation";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const EXERCISES = [
-  { key: "push_ups", label: "Push-ups", type: "reps", apiEndpoint: "pushups" },
+  { key: "pushups", label: "Push-ups", type: "reps", apiEndpoint: "pushups" },
   { key: "situps", label: "Sit-ups", type: "reps", apiEndpoint: "situps" },
   { key: "plank_seconds", label: "Plank", type: "seconds", apiEndpoint: "plank" },
   { key: "squats", label: "Squats", type: "reps", apiEndpoint: "squats" },
@@ -35,7 +36,7 @@ const FEELING_LABELS = {
 
 export default function Workout() {
   const { data: user } = useSWR<User>("/api/user", fetcher);
-
+  const router = useRouter();
   const USER = {
     user_id: user?.id,
     age: user?.age || 30,
@@ -72,7 +73,6 @@ export default function Workout() {
 
   // Categorize ML prediction into actionable recommendation
   const categorizePrediction = (predictedChange:any) => {
-    console.log("Categorizing prediction:", predictedChange);
     let category, advice, adjustmentRange;
 
     if (predictedChange < -10) {
@@ -106,11 +106,11 @@ export default function Workout() {
     } else if (predictedChange < 16) {
       category = "PUSH_HARD";
       advice = "Very strong response. Push significantly.";
-      adjustmentRange = [0.25, 0.35];
+      adjustmentRange = [0.20, 0.30];
     } else {
       category = "OVERREACH";
       advice = "Exceptional capacity. Consider overreaching.";
-      adjustmentRange = [0.3, 0.4];
+      adjustmentRange = [0.25, 0.35];
     }
 
     return {
@@ -131,11 +131,6 @@ export default function Workout() {
       console.warn("Predicted max is NaN, defaulting to 0");
       return 3;
     }
-    console.log(
-      "Applying recommendation:",
-      typeof predictedMax,
-      Number.isInteger(predictedMax) ? "int" : "float"
-    );
     return Math.max(0, predictedMax);
   };
 
@@ -173,8 +168,6 @@ export default function Workout() {
             const lastWorkoutResult = await lastWorkoutResponse.json();
             const lastWorkoutData = lastWorkoutResult.workout;
             setLastWorkout(lastWorkoutData);
-            
-            console.log("📊 Last workout data:", lastWorkoutData);
 
             // 🔥 Get ML predictions for each exercise
             const predictions: Record<string, any> = {};
@@ -185,26 +178,24 @@ export default function Workout() {
               if (ex.type === "feedback") continue;
 
               try {
-                console.log(`Requesting ML prediction for ${ex.key}`);
+                console.log(`Requesting ML prediction for ${ex.key}`, data.features);
                 const predictionResponse = await fetch(
-                  `http://localhost:8000/predict/${ex.apiEndpoint}`,
+                  `https://fastapi-ch53.onrender.com/predict/${ex.apiEndpoint}`,
                   {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(data.features),
                   }
                 );
-
                 if (predictionResponse.ok) {
                   const predictionData = await predictionResponse.json();
-                  console.log(`🤖 ${ex.key} ML prediction data:`, predictionData);
                   predictions[ex.key] = predictionData;
+                  console.log(`🤖 ML prediction for ${ex.key}:`, predictionData);
                   
                   // Categorize the prediction
                   const rec = categorizePrediction(
                     predictionData.prediction || 0
                   );
-                  console.log(`🤖 ${ex.key} recommendation:`, rec);
                   recs[ex.key] = rec;
                     
                   // Calculate predicted max based on last workout
@@ -217,7 +208,7 @@ export default function Workout() {
                   
                   if (lastMaxRes.ok) {
                     const lastMaxData = await lastMaxRes.json();
-                    console.log(`🤖 ${ex.key} last max response:`, lastMaxData);
+                    console.log(`Last max data for ${ex.key}:`, lastMaxData);
                     lastMax = lastMaxData?.data ?? 0;
                   } else {
                     lastMax = lastWorkoutData?.[ex.key] || 0;
@@ -225,22 +216,18 @@ export default function Workout() {
                   } catch (err) {
                   lastMax = lastWorkoutData?.[ex.key] || 0;
                   }
-                  console.log(`🤖 ${ex.key} last max value:`, lastMax);
+
                   const lastMaxValue =
                   typeof lastMax === "object" && lastMax !== null
                     ? lastMax[ex.key] ?? 0
                     : lastMax ?? 0;
+                    
                   const predictedMax = applyRecommendationToMax(
                     lastMaxValue,
                     rec.adjustmentRange
                   );
                   predictedValues[ex.key] = predictedMax;
                   
-                  console.log(`🤖 ${ex.key} prediction:`, {
-                    lastMax,
-                    predictedMax,
-                    category: rec.category,
-                  });
                 }
               } catch (predError) {
                 console.error(`Failed to get ML prediction for ${ex.key}:`, predError);
@@ -256,6 +243,7 @@ export default function Workout() {
             console.error("Failed to fetch last workout:", lastWorkoutError);
           }
         }
+        
       } catch (error) {
         console.error("Failed to fetch features:", error);
       }
@@ -298,14 +286,14 @@ export default function Workout() {
       const weekData = {
         user_id: USER.user_id,
         week: week,
-        push_ups: 0,
+        pushups: 0,
         situps: 0,
         plank_seconds: 0,
         squats: 0,
       };
 
       // Add slight variation (±1-2 reps) to simulate realistic data
-      (Object.keys(baseMaxReps) as Array<"push_ups" | "situps" | "plank_seconds" | "squats">).forEach((key) => {
+      (Object.keys(baseMaxReps) as Array<"pushups" | "situps" | "plank_seconds" | "squats">).forEach((key) => {
         const baseValue = Number(baseMaxReps[key]) || 0;
         const variation = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
         weekData[key] = Math.max(0, baseValue + variation);
@@ -365,7 +353,6 @@ export default function Workout() {
 
       await updateUserCalibration();
       
-      console.log("🏋️ CALIBRATION COMPLETE - Saved 2 weeks of simulated data");
     } else {
       // 2️⃣ REGULAR WORKOUT - Save actual performance
 
@@ -382,7 +369,7 @@ export default function Workout() {
       const workoutData = {
         user_id: USER.user_id,
         week: nextWeek,
-        push_ups: Number(maxReps.push_ups) || 0,
+        pushups: Number(maxReps.pushups) || 0,
         situps: Number(maxReps.situps) || 0,
         plank_seconds: Number(maxReps.plank_seconds) || 0,
         squats: Number(maxReps.squats) || 0,
@@ -407,20 +394,11 @@ export default function Workout() {
           feeling,
         });
 
-        console.log(`📈 Saved predicted vs actual for ${ex.key}`, {
-          predicted: predictedValue,
-          actual: actualValue,
-        });
       }
     }
 
-    console.log("🏋️ WORKOUT COMPLETE", {
-      calibration: isCalibration,
-      maxReps,
-      predicted,
-      rpe,
-      feeling,
-    });
+    router.push("/dashboard");
+    router.refresh();
   };
 
   /* =====================

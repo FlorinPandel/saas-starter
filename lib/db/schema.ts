@@ -54,7 +54,7 @@ export const maxPerformanceByWeek = pgTable('max_performance_by_week', {
     .references(() => users.id),
   week: integer('week').notNull(),
   plank_seconds: integer('plank_seconds').notNull(),
-  push_ups: integer('push_ups').notNull(),
+  pushups: integer('pushups').notNull(),
   squats: integer('squats').notNull(),
   situps: integer('situps').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),

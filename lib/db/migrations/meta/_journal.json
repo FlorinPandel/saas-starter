@@ -64,6 +64,13 @@
       "when": 1769376464913,
       "tag": "0008_groovy_rhino",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1769627630033,
+      "tag": "0009_small_random",
+      "breakpoints": true
     }
   ]
 }

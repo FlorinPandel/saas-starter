@@ -1,0 +1,1 @@
+ALTER TABLE "max_performance_by_week" RENAME COLUMN "push_ups" TO "pushups";
