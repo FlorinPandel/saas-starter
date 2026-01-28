@@ -48,13 +48,19 @@ export default function Workout() {
 
   const [started, setStarted] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
-  const [sets, setSets] = useState({});
-  const [predicted, setPredicted] = useState({});
+  const [sets, setSets] = useState<{ [key: string]: { [key: number]: number } }>({});
+  const [predicted, setPredicted] = useState<{ [key: string]: number }>({});
   const [isCalibration, setIsCalibration] = useState(false);
   const [rpe, setRpe] = useState(5);
   const [feeling, setFeeling] = useState(3);
   const [mlPrediction, setMlPrediction] = useState(null);
-  const [recommendation, setRecommendation] = useState(null);
+  type Recommendation = {
+    category: string;
+    advice: string;
+    adjustmentRange: number[];
+    predictedChange: any;
+  };
+  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
 
   const exercise = EXERCISES[exerciseIndex];
 
@@ -66,7 +72,7 @@ export default function Workout() {
      ===================== */
 
 
-  const savePredictedActual = async (payload) => {
+  const savePredictedActual = async (payload: any) => {
     await fetch("/api/savePredictedPlan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -76,7 +82,7 @@ export default function Workout() {
 
 
   // Categorize ML prediction into actionable recommendation
-  const categorizePrediction = (predictedChange) => {
+  const categorizePrediction = (predictedChange: any) => {
   let category, advice, adjustmentRange;
 
   if (predictedChange < -150) {
@@ -135,8 +141,8 @@ export default function Workout() {
 
 
   // Apply ML recommendation to generate predicted sets based on last workout
-  const applyRecommendationToSets = (lastWorkoutData, adjustmentRange) => {
-    const adjustedSets = {};
+  const applyRecommendationToSets = (lastWorkoutData: any, adjustmentRange: any) => {
+    const adjustedSets: { [key: string]: { [key: number]: number } } = {};
     const [minAdj, maxAdj] = adjustmentRange;
     const avgAdjustment = (minAdj + maxAdj) / 2;
 
@@ -147,7 +153,7 @@ export default function Workout() {
       if (ex.type === "feedback") return;
       
       // Find the exercise data from last workout
-      const lastExerciseData = lastWorkoutData?.find(w => w.exercise === ex.key);
+      const lastExerciseData = lastWorkoutData?.find((w: any) => w.exercise === ex.key);
       
       let baseReps;
       if (lastExerciseData && lastExerciseData.reps_per_set) {
@@ -243,7 +249,7 @@ export default function Workout() {
               // Generate predicted sets based on last workout + recommendation
               // Fetch last workout if not already loaded
               
-              let workoutData = lastWorkout;
+              let workoutData: any[] | null = lastWorkout;
               
               if (!workoutData) {
                 
@@ -253,14 +259,14 @@ export default function Workout() {
                   workoutData = lwResult.workouts;
                 } catch (e) {
                   console.error("Failed to fetch workout for prediction:", e);
-                  workoutData = [];
+                  workoutData = null;
                 }
               }
               
               const adjustedSets = applyRecommendationToSets(workoutData, rec.adjustmentRange);
               
               // Set predicted values for display
-              const predictedValues = {};
+              const predictedValues: { [key: string]: number } = {};
               Object.keys(adjustedSets).forEach(key => {
                 const reps = Object.values(adjustedSets[key]);
                 const totalReps = reps.reduce((a, b) => Number(a) + Number(b), 0);
@@ -274,7 +280,7 @@ export default function Workout() {
                 predictedChange: predictionData.predicted_volume_change,
                 category: rec.category,
                 advice: rec.advice,
-                lastWorkoutCount: workoutData?.length || 0,
+                lastWorkoutCount: Array.isArray(workoutData) ? workoutData.length : 0,
                 adjustedSets: adjustedSets,
                 predictedTotals: predictedValues
               });
@@ -333,13 +339,13 @@ export default function Workout() {
   };
 
   // STRICT ±1 variation, numeric-safe
-  const generateTwoWeeksOfSessions = (baseSets) => {
-    const sessions = [];
+  const generateTwoWeeksOfSessions = (baseSets: any) => {
+    const sessions: any = [];
 
     for (let week = 1; week <= 2; week++) {
       Object.entries(baseSets).forEach(([exercise, setsObj]) => {
         const baseReps = [0, 1, 2, 3].map(
-          (i) => Number.parseInt(setsObj[i], 10) || 0
+          (i) => Number.parseInt((setsObj as { [key: number]: number | string })[i] as string, 10) || 0
         );
 
         const variedReps = baseReps.map((base) => {
@@ -378,7 +384,7 @@ export default function Workout() {
      UI HANDLERS
      ===================== */
 
-  const handleSetChange = (setIndex, value) => {
+  const handleSetChange = (setIndex: any, value: any) => {
     const num = Number(value) || 0;
     setSets((prev) => ({
       ...prev,
@@ -391,9 +397,9 @@ export default function Workout() {
 
   const nextExercise = () => setExerciseIndex((i) => i + 1);
 
-  const calculateVolume = (reps) => reps.reduce((a, b) => a + b, 0);
+  const calculateVolume = (reps: any) => reps.reduce((a: any, b: any) => a + b, 0);
 
-  const saveWorkout = async (payload) => {
+  const saveWorkout = async (payload: any) => {
     await fetch("/api/saveWorkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -588,7 +594,7 @@ export default function Workout() {
                   className="w-full"
                 />
                 <p className="text-center mt-2 font-medium">
-                  {RPE_LABELS[rpe] || `RPE ${rpe}`}
+                  {RPE_LABELS[rpe as keyof typeof RPE_LABELS] || `RPE ${rpe}`}
                 </p>
               </div>
 
@@ -603,7 +609,7 @@ export default function Workout() {
                   className="w-full"
                 />
                 <p className="text-center mt-2 font-medium">
-                  {FEELING_LABELS[feeling]}
+                  {FEELING_LABELS[feeling as keyof typeof FEELING_LABELS]}
                 </p>
               </div>
             </div>
