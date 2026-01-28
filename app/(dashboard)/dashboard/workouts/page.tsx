@@ -232,7 +232,7 @@ export default function Workout() {
           // 🔥 Get ML prediction for non-calibration workouts
           try {
             console.log("Requesting ML prediction with features:", data.features);
-            const predictionResponse = await fetch("http://localhost:8000/predict/ridge", {
+            const predictionResponse = await fetch("https://fastapi-ch53.onrender.com/predict/ridge", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(data.features),

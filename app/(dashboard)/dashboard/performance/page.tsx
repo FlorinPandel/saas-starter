@@ -194,7 +194,7 @@ export default function Workout() {
               try {
                 console.log(`Requesting ML prediction for ${ex.key}`);
                 const predictionResponse = await fetch(
-                  `http://localhost:8000/predict/${ex.apiEndpoint}`,
+                  `https://fastapi-ch53.onrender.com/predict/${ex.apiEndpoint}`,
                   {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
