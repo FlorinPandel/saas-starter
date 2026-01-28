@@ -47,17 +47,17 @@ export default function StatsSection() {
     },
     {
       label: "True Strength",
-      value: user.trueStrength,
+      value: user.trueStrength != null ? user.trueStrength : "N/A",
       icon: Activity,
     },
     {
       label: "Progression Rate",
-      value: `${(user.progressionRate * 100).toFixed(1)}%`,
+      value: user.progressionRate != null ? `${(user.progressionRate * 100).toFixed(1)}%` : "N/A",
       icon: TrendingUp,
     },
     {
       label: "Fatigue Sensitivity",
-      value: user.fatigueSensitivity.toFixed(2),
+      value: user.fatigueSensitivity != null ? user.fatigueSensitivity.toFixed(2) : "N/A",
       icon: HeartPulse,
     },
   ];
