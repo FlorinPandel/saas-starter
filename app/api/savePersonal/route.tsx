@@ -4,9 +4,7 @@ import { getSession } from "@/lib/auth/session";
 
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: true,
 });
 
 export async function POST(request: Request) {
