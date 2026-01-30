@@ -88,47 +88,47 @@ export default function Workout() {
 
   if (predictedChange < -150) {
     category = "FULL_DELOAD";
-    advice = "Severe fatigue detected. Cut volume by 40–60% and prioritize recovery.";
+    advice = "Severe fatigue detected";
     adjustmentRange = [-0.6, -0.4];
 
   } else if (predictedChange < -100) {
     category = "DELOAD";
-    advice = "Significant fatigue. Reduce volume by 30–50%.";
+    advice = "Significant fatigue";
     adjustmentRange = [-0.5, -0.3];
 
   } else if (predictedChange < -40) {
     category = "REDUCE";
-    advice = "Moderate fatigue. Reduce volume by 15–25%.";
+    advice = "Moderate fatigue";
     adjustmentRange = [-0.25, -0.15];
 
   } else if (predictedChange < 20) {
     category = "MAINTAIN";
-    advice = "Maintain current volume. Focus on quality and consistency.";
+    advice = "Maintain current volume";
     adjustmentRange = [0, 0];
 
   } else if (predictedChange < 60) {
     category = "INCREASE_LIGHT";
-    advice = "Mild positive adaptation. Increase volume by 5–10%.";
+    advice = "Mild positive adaptation";
     adjustmentRange = [0.05, 0.1];
 
   } else if (predictedChange < 100) {
     category = "INCREASE";
-    advice = "Good adaptation. Increase volume by 10–20%.";
+    advice = "Good adaptation";
     adjustmentRange = [0.1, 0.2];
 
   } else if (predictedChange < 160) {
     category = "PUSH";
-    advice = "Strong adaptation signal. Increase volume by 20–30%.";
-    adjustmentRange = [0.2, 0.3];
+    advice = "Strong adaptation signal";
+    adjustmentRange = [0.15, 0.2];
 
   } else if (predictedChange < 220) {
     category = "PUSH_HARD";
-    advice = "Very strong response. Increase volume by 25–35%, monitor fatigue closely.";
-    adjustmentRange = [0.25, 0.35];
+    advice = "Very strong response";
+    adjustmentRange = [0.2, 0.25];
 
   } else {
     category = "OVERREACH";
-    advice = "Exceptional capacity detected. Short-term overload (30–40%), plan recovery soon.";
+    advice = "Exceptional capacity detected";
     adjustmentRange = [0.3, 0.4];
   }
 
@@ -204,11 +204,9 @@ export default function Workout() {
 
         // ✅ calibration logic
         if (data.features?.total_volume === 0) {
-          console.log("Calibration mode activated");
           setIsCalibration(true);
         } else {
           setIsCalibration(false);
-          console.log("Regular workout mode");
           
           // 🔥 Fetch last workout data
           try {
@@ -233,9 +231,7 @@ export default function Workout() {
             if (predictionResponse.ok) {
               const predictionData = await predictionResponse.json();
               setMlPrediction(predictionData);
-              console.log("🤖 ML prediction data:", predictionData);
-
-              
+        
               // Categorize the prediction
               const rec = categorizePrediction(predictionData.predicted_weighted_volume_change);
               setRecommendation(rec);
@@ -290,7 +286,6 @@ export default function Workout() {
         const response = await fetch(`/api/getPlanFeatures?user_id=${USER.user_id}`);
         const data = await response.json();
         setFeatures(data.features); // save in state
-        console.log("Features:", data.features);
       } catch (error) {
         console.error("Failed to fetch features:", error);
       }
@@ -458,21 +453,10 @@ export default function Workout() {
         feeling,
       });
 
-      console.log("📈 Saved predicted vs actual", {
-        exercise: ex.key,
-        predicted: predictedVolume,
-        actual: actualVolume,
-      });
+      
     }
   }
 
-  console.log("🏋️ WORKOUT COMPLETE", {
-    calibration: isCalibration,
-    actual_sets: sets,
-    predicted,
-    rpe,
-    feeling,
-  });
   router.push("/dashboard");
   router.refresh();
 };
@@ -514,7 +498,7 @@ export default function Workout() {
         
         <button
           onClick={() => setStarted(true)}
-          className="mt-auto bg-indigo-600 rounded-2xl py-4 text-lg"
+          className="mt-auto bg-indigo-600 rounded-2xl py-4 text-lg cursor-pointer"
         >
           <PlayCircle className="inline mr-2" /> Start Workout
         </button>
@@ -544,11 +528,6 @@ export default function Workout() {
                 <span className="font-semibold">
                   {predicted[exercise.key] ?? 0} {exercise.type === "seconds" ? "sec" : "reps"}
                 </span>
-              </div>
-              
-              {/* Debug info - remove this later */}
-              <div className="mb-2 text-xs text-neutral-500">
-                Debug: predicted state = {JSON.stringify(predicted)}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -604,14 +583,14 @@ export default function Workout() {
             {exerciseIndex === EXERCISES.length - 1 ? (
               <button
                 onClick={finishWorkout}
-                className="w-full bg-green-600 py-4 rounded-2xl"
+                className="w-full bg-green-600 py-4 rounded-2xl cursor-pointer"
               >
                 <CheckCircle2 className="inline mr-2" /> Finish Workout
               </button>
             ) : (
               <button
                 onClick={nextExercise}
-                className="w-full bg-indigo-600 py-4 rounded-2xl"
+                className="w-full bg-indigo-600 py-4 rounded-2xl cursor-pointer"
               >
                 Next <ChevronRight className="inline" />
               </button>

@@ -28,12 +28,8 @@ export default function HomePage() {
             learning predict what your body can achieve next.
           </p>
 
-          <div className="mt-10 flex justify-center gap-4">
-            <Button size="lg" className="rounded-full px-8">
-              Open Dashboard
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-
+          <div className=" flex justify-center gap-4">
+           
             
           </div>
         </div>

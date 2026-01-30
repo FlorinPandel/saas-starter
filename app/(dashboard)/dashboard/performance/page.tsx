@@ -102,15 +102,15 @@ export default function Workout() {
     } else if (predictedChange < 12) {
       category = "PUSH";
       advice = "Strong adaptation signal. Push harder.";
-      adjustmentRange = [0.2, 0.3];
+      adjustmentRange = [0.1, 0.2];
     } else if (predictedChange < 16) {
       category = "PUSH_HARD";
       advice = "Very strong response. Push significantly.";
-      adjustmentRange = [0.20, 0.30];
+      adjustmentRange = [0.1, 0.2];
     } else {
       category = "OVERREACH";
       advice = "Exceptional capacity. Consider overreaching.";
-      adjustmentRange = [0.25, 0.35];
+      adjustmentRange = [0.1, 0.2];
     }
 
     return {
@@ -128,7 +128,6 @@ export default function Workout() {
     
     const predictedMax = Math.round(lastMax * (1 + avgAdjustment));
     if (isNaN(predictedMax)) {
-      console.warn("Predicted max is NaN, defaulting to 0");
       return 3;
     }
     return Math.max(0, predictedMax);
@@ -149,16 +148,13 @@ export default function Workout() {
         }
         
         const data = await response.json();
-        console.log("Fetched features:", data);
         setFeatures(data.features);
 
         // ✅ calibration logic
         if (!data.features || data.features?.total_max === 0 || data.error) {
-          console.log("Calibration mode activated");
           setIsCalibration(true);
         } else {
           setIsCalibration(false);
-          console.log("Regular workout mode");
           
           // 🔥 Fetch last workout data
           try {
@@ -178,7 +174,6 @@ export default function Workout() {
               if (ex.type === "feedback") continue;
 
               try {
-                console.log(`Requesting ML prediction for ${ex.key}`, data.features);
                 const predictionResponse = await fetch(
                   `https://fastapi-ch53.onrender.com/predict/${ex.apiEndpoint}`,
                   {
@@ -190,7 +185,6 @@ export default function Workout() {
                 if (predictionResponse.ok) {
                   const predictionData = await predictionResponse.json();
                   predictions[ex.key] = predictionData;
-                  console.log(`🤖 ML prediction for ${ex.key}:`, predictionData);
                   
                   // Categorize the prediction
                   const rec = categorizePrediction(
@@ -208,7 +202,6 @@ export default function Workout() {
                   
                   if (lastMaxRes.ok) {
                     const lastMaxData = await lastMaxRes.json();
-                    console.log(`Last max data for ${ex.key}:`, lastMaxData);
                     lastMax = lastMaxData?.data ?? 0;
                   } else {
                     lastMax = lastWorkoutData?.[ex.key] || 0;
@@ -238,7 +231,6 @@ export default function Workout() {
             setRecommendations(recs);
             setPredicted(predictedValues);
             
-            console.log("🎯 All predictions loaded:", predictedValues);
           } catch (lastWorkoutError) {
             console.error("Failed to fetch last workout:", lastWorkoutError);
           }
@@ -449,7 +441,7 @@ export default function Workout() {
         
         <button
           onClick={() => setStarted(true)}
-          className="mt-auto bg-indigo-600 rounded-2xl py-4 text-lg"
+          className="mt-auto bg-indigo-600 rounded-2xl py-4 text-lg cursor-pointer"
         >
           <PlayCircle className="inline mr-2" /> Start Workout
         </button>
@@ -536,14 +528,14 @@ export default function Workout() {
             {exerciseIndex === EXERCISES.length - 1 ? (
               <button
                 onClick={finishWorkout}
-                className="w-full bg-green-600 py-4 rounded-2xl"
+                className="w-full bg-green-600 py-4 rounded-2xl cursor-pointer"
               >
                 <CheckCircle2 className="inline mr-2" /> Finish Workout
               </button>
             ) : (
               <button
                 onClick={nextExercise}
-                className="w-full bg-indigo-600 py-4 rounded-2xl"
+                className="w-full bg-indigo-600 py-4 rounded-2xl cursor-pointer"
               >
                 Next <ChevronRight className="inline" />
               </button>
