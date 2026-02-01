@@ -34,7 +34,7 @@ function UserMenu() {
       <>
         <Link
           href="/sign-in"
-          className="text-sm font-medium text-gray-700 hover:text-gray-900"
+          className="text-sm font-medium text-white hover:text-gray-900"
         >
           Sign-In
         </Link>
