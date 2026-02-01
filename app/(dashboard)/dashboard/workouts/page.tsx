@@ -350,7 +350,7 @@ export default function Workout() {
           reps_per_set: variedReps,
           avg_rpe: rpe,
           volume,
-          weighted_volume: volume * exerciseWeight,
+          weighted_volume: Math.round(volume * exerciseWeight),
         });
       });
     }
