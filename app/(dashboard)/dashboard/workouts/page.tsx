@@ -582,7 +582,10 @@ export default function Workout() {
           <div className="mt-auto pt-6">
             {exerciseIndex === EXERCISES.length - 1 ? (
               <button
-                onClick={finishWorkout}
+                onClick={(e) => {
+                  e.currentTarget.disabled = true
+                  finishWorkout()
+                }}
                 className="w-full bg-green-600 py-4 rounded-2xl cursor-pointer"
               >
                 <CheckCircle2 className="inline mr-2" /> Finish Workout
