@@ -521,14 +521,68 @@ export default function Workout() {
 
           {exercise.type !== "feedback" && (
             <>
-              <div className="mb-4 flex justify-between bg-indigo-950/40 p-3 rounded-xl">
-                <span className="text-indigo-300 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4" /> Predicted
-                </span>
-                <span className="font-semibold">
-                  {predicted[exercise.key] ?? 0} {exercise.type === "seconds" ? "sec" : "reps"}
-                </span>
-              </div>
+              <div className="mb-4 bg-indigo-950/40 p-3 rounded-xl">
+  {(() => {
+    const total = predicted[exercise.key] ?? 0;
+
+    let splitSets = [0, 0, 0, 0];
+
+    if (total > 0) {
+      // Strong descending fatigue model
+      // 40% / 30% / 20% / 10%
+      const ratios = [0.4, 0.3, 0.2, 0.1];
+
+      let allocated = 0;
+
+      splitSets = ratios.map((ratio, i) => {
+        if (i === 3) {
+          // last set gets remainder to guarantee exact total
+          return total - allocated;
+        }
+
+        const value = Math.max(0, Math.round(total * ratio));
+        allocated += value;
+        return value;
+      });
+
+      // Safety correction if rounding overshoots
+      const currentTotal = splitSets.reduce((a, b) => a + b, 0);
+      if (currentTotal !== total) {
+        splitSets[3] += total - currentTotal;
+      }
+    }
+
+    return (
+      <>
+        <div className="flex justify-between mb-2">
+          <span className="text-indigo-300 flex items-center gap-2">
+            <Sparkles className="w-4 h-4" /> Generated
+          </span>
+          <span className="font-semibold">
+            {total} {exercise.type === "seconds" ? "sec" : "reps"}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          {splitSets.map((value, index) => (
+            <div
+              key={index}
+              className="bg-indigo-900/40 rounded-lg px-3 py-2 flex justify-between"
+            >
+              <span className="text-indigo-400">
+                Set {index + 1}
+              </span>
+              <span className="font-medium">
+                {value} {exercise.type === "seconds" ? "sec" : "reps"}
+              </span>
+            </div>
+          ))}
+        </div>
+      </>
+    );
+  })()}
+</div>
+
 
               <div className="grid grid-cols-2 gap-4">
                 {[0, 1, 2, 3].map((i) => (
